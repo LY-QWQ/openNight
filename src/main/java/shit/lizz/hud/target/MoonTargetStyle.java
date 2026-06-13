@@ -71,12 +71,12 @@ public class MoonTargetStyle extends TargetStyle {
             this.delayCounter++;
         }
 
-        boolean shouldShow = hasTarget || this.delayCounter < VANISH_DELAY;
+        boolean shouldShow = hasTarget;
 
         if (shouldShow != this.visible) {
             this.visible = shouldShow;
             if (this.visible) {
-                this.fadeAnim.animate(1.0, 0.35, Easings.EASE_OUT_POW3);
+                this.fadeAnim.setCurrentValue(1.0);
                 this.barAnim.setCurrentValue(0.0);
                 this.barAnim.setStartTime(0L);
                 this.scaleAnim.setCurrentValue(1.0);
