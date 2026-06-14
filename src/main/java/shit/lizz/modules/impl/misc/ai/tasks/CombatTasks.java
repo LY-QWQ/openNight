@@ -84,7 +84,8 @@ public class CombatTasks {
                         BaritoneBridge.setGoalAndPath("near", enemy.blockPosition(), 2);
                     }
 
-                    return BTNode.Status.RUNNING;
+                    // Always return RUNNING while tracking — don't let Selector fall through to loot
+                    return BaritoneBridge.isPathing() ? BTNode.Status.RUNNING : BTNode.Status.FAILURE;
                 })
         );
     }

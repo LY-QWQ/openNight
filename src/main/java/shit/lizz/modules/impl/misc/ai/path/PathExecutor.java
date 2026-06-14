@@ -71,10 +71,8 @@ public class PathExecutor {
 
         movementYaw = (float) (-Math.toDegrees(Math.atan2(dx, dz)));
 
-        // Don't override rotation when Scaffold is active (it controls its own rotation for block placement)
-        if (Scaffold.INSTANCE == null || !Scaffold.INSTANCE.isEnabled()) {
-            Blackboard.smoothYaw(movementYaw, 30f);
-        }
+        // Always rotate toward path direction — Scaffold handles its own placement rotation via RotationHandler
+        Blackboard.smoothYaw(movementYaw, 30f);
 
         mc.options.keyUp.setDown(true);
         mc.options.keyDown.setDown(false);
@@ -82,10 +80,10 @@ public class PathExecutor {
         mc.options.keyRight.setDown(false);
         mc.options.keySprint.setDown(true);
 
-        if (needJump) {
-            mc.options.keyJump.setDown(true);
-        } else {
-            mc.options.keyJump.setDown(false);
+        // Don't fight Scaffold over jump — it manages jump for its bridge modes
+        boolean scaffoldActive = Scaffold.INSTANCE != null && Scaffold.INSTANCE.isEnabled();
+        if (!scaffoldActive) {
+            mc.options.keyJump.setDown(needJump);
         }
     }
 

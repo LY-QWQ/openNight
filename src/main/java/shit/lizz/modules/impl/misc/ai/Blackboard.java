@@ -34,7 +34,6 @@ public class Blackboard extends ClientBase {
     public boolean isAboveVoid;
     public boolean isOnGround;
     public boolean isNearEdge;
-    public boolean isVoidRescue;
     public BlockPos playerPos;
 
     // Environment
@@ -68,7 +67,7 @@ public class Blackboard extends ClientBase {
 
     // Settings
     public double enemyRange = 20;
-    public double chestRange = 8;
+    public static final double CHEST_SCAN_RANGE = 32;
     public double itemRange = 6;
     public float lowHealthThreshold = 8;
     public boolean autoEat = true;
@@ -89,9 +88,6 @@ public class Blackboard extends ClientBase {
         isAboveVoid = MovementUtil.isAboveVoid(playerPos.getX(), playerPos.getY(), playerPos.getZ());
         isNearEdge = isOnNearEdge(0.3f);
 
-        // Void rescue: in void with no blocks or unable to bridge to safety
-        isVoidRescue = isAboveVoid && (blockCount <= 0 || isSurroundedByHigherBlocks());
-
         blockCount = ItemUtil.countBlocks();
         hasSword = ItemUtil.getBestSword() != null;
         hasFood = ItemUtil.countFood() > 0;
@@ -109,7 +105,7 @@ public class Blackboard extends ClientBase {
         // Chests (cached scan every 20 ticks — Bug 5 fix)
         if (tickCount - lastChestScanTick >= 20) {
             lastChestScanTick = tickCount;
-            int r = (int) chestRange;
+            int r = (int) CHEST_SCAN_RANGE;
             cachedChests = new ArrayList<>();
             BlockPos.MutableBlockPos mutablePos = new BlockPos.MutableBlockPos();
             for (int x = -r; x <= r; x++) {
@@ -171,29 +167,6 @@ public class Blackboard extends ClientBase {
 
     public boolean hasBlocks() {
         return blockCount > 0;
-    }
-
-    /**
-     * Check if surrounding blocks are higher than the player (can't bridge to reach them).
-     * Scans a 5-block horizontal radius for solid blocks above player Y.
-     */
-    private boolean isSurroundedByHigherBlocks() {
-        if (mc.level == null || mc.player == null) return false;
-        int px = playerPos.getX();
-        int py = playerPos.getY();
-        int pz = playerPos.getZ();
-        int radius = 5;
-        for (int x = -radius; x <= radius; x++) {
-            for (int z = -radius; z <= radius; z++) {
-                if (x == 0 && z == 0) continue;
-                // Check blocks above player level (2-5 blocks up)
-                for (int dy = 2; dy <= 5; dy++) {
-                    BlockState state = mc.level.getBlockState(new BlockPos(px + x, py + dy, pz + z));
-                    if (state.isSolid()) return true;
-                }
-            }
-        }
-        return false;
     }
 
     public void log(String msg) {

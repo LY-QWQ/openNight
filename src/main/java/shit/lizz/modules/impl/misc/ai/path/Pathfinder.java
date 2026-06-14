@@ -7,7 +7,7 @@ import net.minecraft.core.BlockPos;
 public class Pathfinder {
     private static Goal lastGoal;
     private static long lastGoalTime;
-    private static final long CACHE_MS = 800; // 40 ticks
+    private static final long CACHE_MS = 200; // 10 ticks
 
     public static Path findPath(ClientLevel level, BlockPos playerPos, Goal goal) {
         long now = System.currentTimeMillis();

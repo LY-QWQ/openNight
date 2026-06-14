@@ -9,8 +9,8 @@ import java.util.Collections;
 import java.util.List;
 
 public class AStarPathFinder {
-    private static final long TIMEOUT_MS = 200;
-    private static final int MAX_NODES = 1000;
+    private static final long TIMEOUT_MS = 500;
+    private static final int MAX_NODES = 5000;
 
     public static Path findPath(ClientLevel level, BetterBlockPos start, Goal goal) {
         BinaryHeapOpenSet openSet = new BinaryHeapOpenSet();

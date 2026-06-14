@@ -42,7 +42,7 @@ public class InventoryTasks {
             waitTicks++;
             // Close after InvManager finishes or timeout
             if ((!InventoryManager.isPerformingAction && waitTicks > 5) || waitTicks > 200) {
-                ClientBase.mc.player.closeContainer();
+                ClientBase.mc.setScreen(null);
                 lastSortTick = bb.tickCount;
                 return BTNode.Status.SUCCESS;
             }

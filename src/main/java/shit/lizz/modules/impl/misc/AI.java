@@ -27,7 +27,6 @@ import shit.lizz.utils.rotation.RotationHandler;
 public class AI extends Module {
 
     public final NumberSetting enemyRange = new NumberSetting("Enemy Range", 20, 4, 50, 1);
-    public final NumberSetting chestRange = new NumberSetting("Chest Range", 8, 3, 20, 1);
     public final NumberSetting lowHealth = new NumberSetting("Low Health", 8, 2, 18, 1);
     public final BooleanSetting autoEat = new BooleanSetting("Auto Eat", true);
     public final BooleanSetting autoLoot = new BooleanSetting("Auto Loot", true);
@@ -169,9 +168,9 @@ public class AI extends Module {
         // Tick path executor every tick for smooth movement
         BaritoneBridge.tick();
 
-        // Scaffold auto: enable when pathing, disable when not
+        // Scaffold auto: enable when pathing with blocks (shouldBuild checks air below)
         if (Scaffold.INSTANCE != null) {
-            boolean shouldScaffold = BaritoneBridge.needsBridgeNearby() && blackboard.hasBlocks();
+            boolean shouldScaffold = BaritoneBridge.isPathing() && blackboard.hasBlocks();
             if (Scaffold.INSTANCE.isEnabled() != shouldScaffold) {
                 Scaffold.INSTANCE.setEnabled(shouldScaffold);
             }
@@ -190,7 +189,6 @@ public class AI extends Module {
     private void syncSettings() {
         blackboard.log = log.getValue();
         blackboard.enemyRange = enemyRange.getValue().doubleValue();
-        blackboard.chestRange = chestRange.getValue().doubleValue();
         blackboard.lowHealthThreshold = lowHealth.getValue().floatValue();
         blackboard.autoEat = autoEat.getValue();
         blackboard.autoLoot = autoLoot.getValue();
@@ -201,9 +199,7 @@ public class AI extends Module {
 
     private BTNode buildTree() {
         return new Selector(
-                // [0] 虚空自救 — 绝对最高优先级
-                SurvivalTasks.voidRescue(),
-                // [1] 自救 — 吃食物
+                // [0] 自救 — 吃食物
                 new Selector(
                         SurvivalTasks.criticalEat(),
                         SurvivalTasks.eatFood()

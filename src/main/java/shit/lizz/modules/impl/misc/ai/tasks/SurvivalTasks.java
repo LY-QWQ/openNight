@@ -1,12 +1,8 @@
 package shit.lizz.modules.impl.misc.ai.tasks;
 
-import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.item.ItemStack;
 import shit.lizz.ClientBase;
-import shit.lizz.modules.impl.misc.ai.Blackboard;
-import shit.lizz.modules.impl.misc.ai.BaritoneBridge;
 import shit.lizz.modules.impl.misc.ai.btree.*;
 import shit.lizz.utils.game.ItemUtil;
 
@@ -97,23 +93,6 @@ public class SurvivalTasks {
         return findFoodSlot(false);
     }
 
-    /**
-     * Void self-rescue: when in void with no blocks to bridge.
-     * Stops all movement and disconnects to save the player.
-     */
-    public static BTNode voidRescue() {
-        return new Sequence(
-                new Condition(bb -> bb.isVoidRescue),
-                new Action(bb -> {
-                    Blackboard.clearMovement();
-                    BaritoneBridge.cancel();
-                    bb.log("VOID! No blocks to bridge — disconnecting");
-                    ClientBase.mc.player.connection.getConnection().disconnect(
-                            Component.literal("§c[AI] Void rescue — disconnected to save"));
-                    return BTNode.Status.SUCCESS;
-                })
-        );
-    }
 
     private static int findFoodSlot(boolean enemyNearby) {
         Item[] foodPriority = {
