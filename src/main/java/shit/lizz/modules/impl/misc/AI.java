@@ -162,33 +162,32 @@ public class AI extends Module {
         if (mc.player == null || mc.level == null) return;
         if (blackboard == null || behaviorTree == null) return;
 
-        // Bug 8 fix: Update awareness every tick for responsive combat
         syncSettings();
         blackboard.update();
 
         // Tick path executor every tick for smooth movement
         BaritoneBridge.tick();
 
-        // Scaffold auto: only enable when path has bridge segments nearby (void crossing)
+        // Scaffold auto: enable when path has bridge segments nearby (void crossing)
+        // NEVER disable scaffold during combat — falling into void is worse than fighting
         if (Scaffold.INSTANCE != null) {
             boolean shouldScaffold = BaritoneBridge.needsBridgeNearby() && blackboard.hasBlocks();
             if (Scaffold.INSTANCE.isEnabled() != shouldScaffold) {
                 Scaffold.INSTANCE.setEnabled(shouldScaffold);
             }
-            // When ascending, switch to Normal mode so scaffold can place on UP face
-            // (Telly Bridge requires GLFW jumpHeld which we can't set from code)
-            if (shouldScaffold && BaritoneBridge.needsAscendingNearby()) {
-                if (!scaffoldModeOverridden) {
-                    Scaffold.INSTANCE.mode.setValue("Normal");
-                    scaffoldModeOverridden = true;
-                }
-            } else if (scaffoldModeOverridden) {
+            // Ascending bridge: force scaffold to jump (Normal mode + forceJump flag)
+            // This replaces the old mode switch approach
+            boolean ascendingBridge = shouldScaffold && BaritoneBridge.needsAscendingNearby();
+            if (ascendingBridge && !scaffoldModeOverridden) {
+                Scaffold.INSTANCE.mode.setValue("Normal");
+                scaffoldModeOverridden = true;
+            } else if (!ascendingBridge && scaffoldModeOverridden) {
                 Scaffold.INSTANCE.mode.setValue("Telly Bridge");
                 scaffoldModeOverridden = false;
             }
+            Scaffold.INSTANCE.forceJump = ascendingBridge;
         }
 
-        // Tick behavior tree every tick for responsive combat
         behaviorTree.tick(blackboard);
     }
 
@@ -205,17 +204,12 @@ public class AI extends Module {
 
     private BTNode buildTree() {
         return new Selector(
-                // [0] 自救 — 吃食物
+                // [1] 自救 — 吃食物（最高优先级）
                 new Selector(
                         SurvivalTasks.criticalEat(),
                         SurvivalTasks.eatFood()
                 ),
-                // [2] 打人 — 主动出击
-                new Selector(
-                        CombatTasks.meleeCombat(),
-                        CombatTasks.trackEnemy()
-                ),
-                // [3] 搜刮 — 找箱子
+                // [2] 搜刮 — 找箱子（核心循环：装备 > 打架）
                 new Selector(
                         LootTasks.waitForChestStealer(),
                         LootTasks.openChest(),
@@ -224,6 +218,11 @@ public class AI extends Module {
                         LootTasks.pickupItems()
                 ),
                 LootTasks.ensureChestStealer(),
+                // [3] 打人 — 主动出击（有装备了再打）
+                new Selector(
+                        CombatTasks.meleeCombat(),
+                        CombatTasks.trackEnemy()
+                ),
                 // [4] goto 命令
                 BridgeTasks.gotoCommand(),
                 // [5] 背包整理

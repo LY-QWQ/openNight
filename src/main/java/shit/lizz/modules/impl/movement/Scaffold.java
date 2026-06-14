@@ -72,6 +72,10 @@ public class Scaffold extends Module {
     public int targetYLevel = -1;
     public int velocityDelay = 0;
 
+    // Set by AI pathfinding: forces jump during ascending bridge segments
+    // (Telly Bridge checks GLFW state which can't be set from code)
+    public boolean forceJump = false;
+
     private int oldSlot;
     private PlacementTarget currentPlacement;
     private int eagleTimer;
@@ -124,6 +128,7 @@ public class Scaffold extends Module {
             mc.options.keyUse.setDown(false);
             mc.player.getInventory().selected = this.oldSlot;
             this.canBuildNow = true;
+            this.forceJump = false;
             ClientBase.delayPackets.clear();
         }
         super.onDisable();
@@ -275,8 +280,8 @@ public class Scaffold extends Module {
                 }
             }
             if (this.mode.is("Telly Bridge") || this.mode.is("Old Telly")) {
-                mc.options.keyJump.setDown(MovementUtil.isMoving() || jumpHeld);
-                if (this.airTicks < 1 && MovementUtil.isMoving()) {
+                mc.options.keyJump.setDown(MovementUtil.isMoving() || jumpHeld || this.forceJump);
+                if (this.airTicks < 1 && (MovementUtil.isMoving() || this.forceJump)) {
                     if (this.mode.is("Old Telly")) {
                         this.rots.setYaw(mc.player.getYRot());
                     }
@@ -284,12 +289,18 @@ public class Scaffold extends Module {
                     return;
                 }
             } else if (this.mode.is("Keep Y")) {
-                mc.options.keyJump.setDown(MovementUtil.isMoving() || jumpHeld);
+                mc.options.keyJump.setDown(MovementUtil.isMoving() || jumpHeld || this.forceJump);
             } else {
+                if (this.forceJump) {
+                    mc.options.keyJump.setDown(true);
+                    if (mc.player.onGround()) {
+                        mc.player.jumpFromGround();
+                    }
+                }
                 if (this.eagle.getValue()) {
                     mc.options.keyShift.setDown(mc.player.onGround() && isOnBlockEdge(0.3f));
                 }
-                if (this.snap.getValue() && !jumpHeld) {
+                if (this.snap.getValue() && !jumpHeld && !this.forceJump) {
                     this.resetSnap();
                 }
             }

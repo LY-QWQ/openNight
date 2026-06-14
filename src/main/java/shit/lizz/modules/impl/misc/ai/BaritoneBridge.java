@@ -21,6 +21,7 @@ public class BaritoneBridge {
 
     private static PathExecutor currentExecutor = null;
     private static Path currentPath = null;
+    private static boolean paused = false;
 
     public static boolean isAvailable() {
         return true; // Self-contained, always available
@@ -43,6 +44,7 @@ public class BaritoneBridge {
 
         currentPath = path;
         currentExecutor = new PathExecutor(path);
+        paused = false; // New path starts unpaused
         return true;
     }
 
@@ -64,7 +66,7 @@ public class BaritoneBridge {
      * Returns true if currently pathing (not done yet).
      */
     public static boolean tick() {
-        if (currentExecutor == null) return false;
+        if (currentExecutor == null || paused) return currentExecutor != null;
         boolean done = currentExecutor.onTick();
         if (done) {
             currentExecutor = null;
@@ -73,6 +75,10 @@ public class BaritoneBridge {
         }
         return true;
     }
+
+    public static void pause() { paused = true; }
+    public static void resume() { paused = false; }
+    public static boolean isPaused() { return paused; }
 
     public static boolean isPathing() {
         return currentExecutor != null && !currentExecutor.isComplete() && !currentExecutor.isFailed();
@@ -89,6 +95,7 @@ public class BaritoneBridge {
     public static boolean needsBridgeNearby() {
         if (currentExecutor == null || currentPath == null) return false;
         if (currentExecutor.isComplete() || currentExecutor.isFailed()) return false;
+        // Check even when paused — scaffold must stay active over void
         int pos = currentExecutor.getPathPosition();
         int start = Math.max(0, pos - 1);
         int end = Math.min(pos + 5, currentPath.length());

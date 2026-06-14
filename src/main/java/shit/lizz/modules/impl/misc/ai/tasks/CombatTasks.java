@@ -21,7 +21,8 @@ public class CombatTasks {
                 new Condition(bb -> bb.nearestEnemy != null && bb.nearestEnemyDist <= 4),
                 new Condition(bb -> !bb.isContainerOpen()),
                 new Action(bb -> {
-                    BaritoneBridge.cancel();
+                    // Pause path instead of cancel — scaffold needs to stay active over void
+                    BaritoneBridge.pause();
                     Player enemy = bb.nearestEnemy;
 
                     if (!KillAura.INSTANCE.isEnabled()) {
@@ -74,6 +75,7 @@ public class CombatTasks {
                 new Condition(bb -> !bb.isContainerOpen()),
                 new Action(bb -> {
                     KillAura.INSTANCE.setEnabled(false);
+                    BaritoneBridge.resume();
                     Player enemy = bb.nearestEnemy;
 
                     // No path yet: create one. Otherwise re-path every 20 ticks (1s)
@@ -95,6 +97,7 @@ public class CombatTasks {
         return new Action(bb -> {
             if (!KillAura.INSTANCE.isEnabled()) return BTNode.Status.FAILURE;
             KillAura.INSTANCE.setEnabled(false);
+            BaritoneBridge.resume();
             return BTNode.Status.SUCCESS;
         });
     }
