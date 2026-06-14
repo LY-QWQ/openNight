@@ -102,12 +102,12 @@ public class PathExecutor {
         mc.options.keyLeft.setDown(strafe < -0.15);
         mc.options.keySprint.setDown(forward > 0.5);
 
-        // Direct jump call — bypass keyJump which Scaffold may override
+        // Always set keyJump when ascending — InputConstants.isKeyDown() reads this
+        // Scaffold's Telly Bridge also checks this state
+        mc.options.keyJump.setDown(needJump);
+        // Direct jump call as backup when on ground
         if (needJump && mc.player.onGround()) {
-            mc.options.keyJump.setDown(true);
             mc.player.jump();
-        } else {
-            mc.options.keyJump.setDown(false);
         }
     }
 
