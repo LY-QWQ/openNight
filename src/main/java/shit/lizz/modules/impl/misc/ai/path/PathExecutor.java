@@ -30,33 +30,44 @@ public class PathExecutor {
             return true;
         }
 
+        // Skip ahead: if player already passed multiple waypoints, catch up
+        // (prevents 180° turning when jumping overshoots a waypoint)
+        int playerY = (int) Math.floor(player.getY());
+        while (pathPosition < path.length()) {
+            BetterBlockPos wp = path.get(pathPosition);
+            double wpDx = wp.x + 0.5 - player.getX();
+            double wpDz = wp.z + 0.5 - player.getZ();
+            double wpDist = Math.sqrt(wpDx * wpDx + wpDz * wpDz);
+            boolean wpAscending = wp.y > playerY;
+
+            // Reached: close in XZ and matching Y
+            // Ascending overshoot: player already at or above target Y
+            boolean reached;
+            if (wpAscending) {
+                reached = (wpDist < 0.6 && playerY >= wp.y) || playerY > wp.y;
+            } else {
+                reached = wpDist < 0.6 && Math.abs(wp.y - playerY) <= 1;
+            }
+
+            if (reached) {
+                pathPosition++;
+                ticksOnCurrent = 0;
+            } else {
+                break;
+            }
+        }
+
+        if (pathPosition >= path.length()) {
+            complete = true;
+            clearMovement();
+            return true;
+        }
+
         BetterBlockPos target = path.get(pathPosition);
         double dx = target.x + 0.5 - player.getX();
         double dz = target.z + 0.5 - player.getZ();
         double distXZ = Math.sqrt(dx * dx + dz * dz);
-        int playerY = (int) Math.floor(player.getY());
         boolean ascending = target.y > playerY;
-
-        // Reached this position:
-        // - Flat: close in XZ and same Y
-        // - Ascending: close in XZ AND player is at or above target Y
-        boolean reached;
-        if (ascending) {
-            reached = distXZ < 0.6 && playerY >= target.y;
-        } else {
-            reached = distXZ < 0.6 && Math.abs(target.y - playerY) <= 1;
-        }
-
-        if (reached) {
-            pathPosition++;
-            ticksOnCurrent = 0;
-            if (pathPosition >= path.length()) {
-                complete = true;
-                clearMovement();
-                return true;
-            }
-            return false;
-        }
 
         ticksOnCurrent++;
         if (ticksOnCurrent > 100) {
