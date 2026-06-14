@@ -69,10 +69,11 @@ public class CombatTasks {
     }
 
     /**
-     * 追踪：距离 4-50 时主动走向敌人（Scaffold 自动启用搭路）
+     * 追踪：距离 4-50 时主动走向敌人（需要有剑，否则先搜刮）
      */
     public static BTNode trackEnemy() {
         return new Sequence(
+                new Condition(bb -> bb.hasSword),
                 new Condition(bb -> bb.nearestEnemy != null && bb.nearestEnemyDist > 4 && bb.nearestEnemyDist <= 50),
                 new Condition(bb -> !bb.isContainerOpen()),
                 new Action(bb -> {
