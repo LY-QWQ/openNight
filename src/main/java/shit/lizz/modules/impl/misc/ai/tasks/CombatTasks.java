@@ -3,7 +3,6 @@ package shit.lizz.modules.impl.misc.ai.tasks;
 import net.minecraft.world.entity.player.Player;
 import shit.lizz.ClientBase;
 import shit.lizz.modules.impl.combat.KillAura;
-import shit.lizz.modules.impl.combat.Critical;
 import shit.lizz.modules.impl.combat.AntiKB;
 import shit.lizz.modules.impl.misc.ai.BaritoneBridge;
 import shit.lizz.modules.impl.misc.ai.Blackboard;
@@ -30,7 +29,6 @@ public class CombatTasks {
                         bb.log("Fighting: " + enemy.getName().getString());
                     }
                     KillAura.INSTANCE.setEnabled(true);
-                    Critical.INSTANCE.setEnabled(true);
                     AntiKB.INSTANCE.setEnabled(true);
 
                     // 绕着敌人走
@@ -97,10 +95,9 @@ public class CombatTasks {
      */
     public static BTNode disableCombatModules() {
         return new Action(bb -> {
-            boolean anyActive = KillAura.INSTANCE.isEnabled() || Critical.INSTANCE.isEnabled() || AntiKB.INSTANCE.isEnabled();
+            boolean anyActive = KillAura.INSTANCE.isEnabled() || AntiKB.INSTANCE.isEnabled();
             if (!anyActive) return BTNode.Status.FAILURE;
             KillAura.INSTANCE.setEnabled(false);
-            Critical.INSTANCE.setEnabled(false);
             AntiKB.INSTANCE.setEnabled(false);
             return BTNode.Status.SUCCESS;
         });
