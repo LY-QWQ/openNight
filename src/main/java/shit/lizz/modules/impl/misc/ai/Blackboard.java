@@ -209,8 +209,10 @@ public class Blackboard extends ClientBase {
         float sens = mc.options.sensitivity().get().floatValue();
         float scaled = sens * 0.6f + 0.2f;
         float gcd = scaled * scaled * scaled * 1.2f;
-        if (gcd > 0) {
+        if (gcd > 0 && Math.abs(diff) > gcd) {
             result = result - result % gcd;
+        } else {
+            result = targetYaw;
         }
         mc.player.setYRot(result);
     }
@@ -230,8 +232,10 @@ public class Blackboard extends ClientBase {
         float sens = mc.options.sensitivity().get().floatValue();
         float scaled = sens * 0.6f + 0.2f;
         float gcd = scaled * scaled * scaled * 1.2f;
-        if (gcd > 0) {
+        if (gcd > 0 && Math.abs(diff) > gcd) {
             result = result - result % gcd;
+        } else {
+            result = targetPitch;
         }
         mc.player.setXRot(Mth.clamp(result, -90f, 90f));
     }

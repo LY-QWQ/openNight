@@ -1,6 +1,7 @@
 package shit.lizz.modules.impl.misc.ai;
 
 import net.minecraft.core.BlockPos;
+import shit.lizz.modules.impl.misc.ai.path.BetterBlockPos;
 import shit.lizz.modules.impl.misc.ai.path.Path;
 import shit.lizz.modules.impl.misc.ai.path.PathExecutor;
 import shit.lizz.modules.impl.misc.ai.path.Pathfinder;
@@ -93,6 +94,23 @@ public class BaritoneBridge {
         int end = Math.min(pos + 5, currentPath.length());
         for (int i = start; i < end; i++) {
             if (currentPath.needsBridgeAt(i)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Check if the current path has ascending segments near the player.
+     * Returns true if any upcoming path node is higher than the previous one.
+     */
+    public static boolean needsAscendingNearby() {
+        if (currentExecutor == null || currentPath == null) return false;
+        if (currentExecutor.isComplete() || currentExecutor.isFailed()) return false;
+        int pos = currentExecutor.getPathPosition();
+        int end = Math.min(pos + 5, currentPath.length());
+        for (int i = Math.max(1, pos); i < end; i++) {
+            BetterBlockPos prev = currentPath.get(i - 1);
+            BetterBlockPos curr = currentPath.get(i);
+            if (curr.y > prev.y) return true;
         }
         return false;
     }

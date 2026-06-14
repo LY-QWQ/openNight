@@ -3,7 +3,6 @@ package shit.lizz.modules.impl.misc.ai.path;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.player.Player;
 import shit.lizz.modules.impl.misc.ai.Blackboard;
-import shit.lizz.modules.impl.movement.Scaffold;
 
 public class PathExecutor {
     private static final Minecraft mc = Minecraft.getInstance();
@@ -102,8 +101,7 @@ public class PathExecutor {
         mc.options.keyLeft.setDown(strafe < -0.15);
         mc.options.keySprint.setDown(forward > 0.5);
 
-        // Always set keyJump when ascending — InputConstants.isKeyDown() reads this
-        // Scaffold's Telly Bridge also checks this state
+        // Always set keyJump when ascending
         mc.options.keyJump.setDown(needJump);
         // Direct jump call as backup when on ground
         if (needJump && mc.player.onGround()) {

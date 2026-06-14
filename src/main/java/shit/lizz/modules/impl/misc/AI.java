@@ -35,6 +35,7 @@ public class AI extends Module {
     private Blackboard blackboard;
     private BTNode behaviorTree;
     private BlockPos gotoTarget = null;
+    private boolean scaffoldModeOverridden = false;
 
     public AI() {
         super("AI", Category.MISC);
@@ -57,7 +58,13 @@ public class AI extends Module {
         }
         SurvivalTasks.resetEatingState();
         try {
-            if (Scaffold.INSTANCE != null) Scaffold.INSTANCE.setEnabled(false);
+            if (Scaffold.INSTANCE != null) {
+                if (scaffoldModeOverridden) {
+                    Scaffold.INSTANCE.mode.setValue("Telly Bridge");
+                    scaffoldModeOverridden = false;
+                }
+                Scaffold.INSTANCE.setEnabled(false);
+            }
         } catch (Exception ignored) {}
         BaritoneBridge.restoreDefaults();
         BaritoneBridge.cancel();
@@ -167,6 +174,17 @@ public class AI extends Module {
             boolean shouldScaffold = BaritoneBridge.needsBridgeNearby() && blackboard.hasBlocks();
             if (Scaffold.INSTANCE.isEnabled() != shouldScaffold) {
                 Scaffold.INSTANCE.setEnabled(shouldScaffold);
+            }
+            // When ascending, switch to Normal mode so scaffold can place on UP face
+            // (Telly Bridge requires GLFW jumpHeld which we can't set from code)
+            if (shouldScaffold && BaritoneBridge.needsAscendingNearby()) {
+                if (!scaffoldModeOverridden) {
+                    Scaffold.INSTANCE.mode.setValue("Normal");
+                    scaffoldModeOverridden = true;
+                }
+            } else if (scaffoldModeOverridden) {
+                Scaffold.INSTANCE.mode.setValue("Telly Bridge");
+                scaffoldModeOverridden = false;
             }
         }
 
