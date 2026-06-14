@@ -107,7 +107,7 @@ public class PathExecutor {
         mc.options.keyJump.setDown(needJump);
         // Direct jump call as backup when on ground
         if (needJump && mc.player.onGround()) {
-            mc.player.jump();
+            mc.player.jumpFromGround();
         }
     }
 
