@@ -12,43 +12,17 @@ public class SurvivalTasks {
     private static int prevSlot = -1;
 
     public static BTNode eatFood() {
-        return new Sequence(
-                new Condition(bb -> bb.autoEat && bb.isHealthLow() && bb.hasFood),
-                new Condition(bb -> !bb.isContainerOpen()),
-                new Action(bb -> {
-                    boolean enemyNearby = bb.nearestEnemy != null && bb.nearestEnemyDist <= 6;
-
-                    if (eatingSlot != -1) {
-                        // Currently eating — wait for completion
-                        if (!ClientBase.mc.player.isUsingItem()) {
-                            ClientBase.mc.options.keyUse.setDown(false);
-                            if (prevSlot != -1) {
-                                ClientBase.mc.player.getInventory().selected = prevSlot;
-                            }
-                            eatingSlot = -1;
-                            prevSlot = -1;
-                            return bb.isHealthLow() ? BTNode.Status.RUNNING : BTNode.Status.SUCCESS;
-                        }
-                        return BTNode.Status.RUNNING;
-                    }
-
-                    int slot = findFoodSlot(enemyNearby);
-                    if (slot == -1) return BTNode.Status.FAILURE;
-
-                    prevSlot = ClientBase.mc.player.getInventory().selected;
-                    ClientBase.mc.player.getInventory().selected = slot;
-                    eatingSlot = slot;
-                    ClientBase.mc.options.keyUse.setDown(true);
-                    bb.log("Eating food (slot " + slot + ")");
-                    return BTNode.Status.RUNNING;
-                })
-        );
+        return eat(false);
     }
 
     public static BTNode criticalEat() {
+        return eat(true);
+    }
+
+    private static BTNode eat(boolean critical) {
         return new Sequence(
-                new Condition(bb -> bb.autoEat && bb.isHealthCritical() && bb.hasFood),
-                new Condition(bb -> !bb.isContainerOpen()),
+                new Condition(bb -> bb.autoEat && bb.hasFood && !bb.isContainerOpen()),
+                new Condition(bb -> critical ? bb.isHealthCritical() : bb.isHealthLow()),
                 new Action(bb -> {
                     boolean enemyNearby = bb.nearestEnemy != null && bb.nearestEnemyDist <= 6;
 
@@ -60,7 +34,8 @@ public class SurvivalTasks {
                             }
                             eatingSlot = -1;
                             prevSlot = -1;
-                            return bb.isHealthCritical() ? BTNode.Status.RUNNING : BTNode.Status.SUCCESS;
+                            boolean stillNeedsEat = critical ? bb.isHealthCritical() : bb.isHealthLow();
+                            return stillNeedsEat ? BTNode.Status.RUNNING : BTNode.Status.SUCCESS;
                         }
                         return BTNode.Status.RUNNING;
                     }
@@ -72,13 +47,13 @@ public class SurvivalTasks {
                     ClientBase.mc.player.getInventory().selected = slot;
                     eatingSlot = slot;
                     ClientBase.mc.options.keyUse.setDown(true);
-                    bb.log("CRITICAL HP! Eating (slot " + slot + ")");
+                    bb.log(critical ? "CRITICAL HP! Eating (slot " + slot + ")" : "Eating food (slot " + slot + ")");
                     return BTNode.Status.RUNNING;
                 })
         );
     }
 
-    public static void resetEatingState() {
+    public static void reset() {
         if (eatingSlot != -1) {
             ClientBase.mc.options.keyUse.setDown(false);
             if (prevSlot != -1 && ClientBase.mc.player != null) {
@@ -88,11 +63,6 @@ public class SurvivalTasks {
             prevSlot = -1;
         }
     }
-
-    private static int findFoodSlot() {
-        return findFoodSlot(false);
-    }
-
 
     private static int findFoodSlot(boolean enemyNearby) {
         Item[] foodPriority = {
@@ -104,7 +74,6 @@ public class SurvivalTasks {
                 Items.COD, Items.SALMON, Items.RABBIT, Items.POTATO, Items.CARROT
         };
         for (Item food : foodPriority) {
-            // When enemy is nearby, only allow enchanted golden apple
             if (enemyNearby && food != Items.ENCHANTED_GOLDEN_APPLE) continue;
             int slot = ItemUtil.getSlot(food);
             if (slot != -1) return slot;

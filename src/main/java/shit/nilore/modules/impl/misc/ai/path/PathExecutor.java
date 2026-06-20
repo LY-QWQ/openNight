@@ -2,7 +2,7 @@ package shit.nilore.modules.impl.misc.ai.path;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.player.Player;
-import shit.nilore.modules.impl.misc.ai.Blackboard;
+import shit.nilore.modules.impl.misc.ai.MovementHelper;
 
 public class PathExecutor {
     private static final Minecraft mc = Minecraft.getInstance();
@@ -123,7 +123,7 @@ public class PathExecutor {
         }
 
         // Flat movement: smooth rotation + strafe-based movement
-        Blackboard.smoothYaw(movementYaw, 30f);
+        MovementHelper.smoothYaw(movementYaw, 30f);
 
         float yawRad = (float) Math.toRadians(mc.player.getYRot());
         float forwardX = (float) -Math.sin(yawRad);

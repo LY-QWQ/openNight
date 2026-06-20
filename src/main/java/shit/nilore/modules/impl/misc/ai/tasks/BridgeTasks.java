@@ -41,4 +41,8 @@ public class BridgeTasks {
                 })
         );
     }
+
+    public static void reset() {
+        lastGotoTarget = null;
+    }
 }

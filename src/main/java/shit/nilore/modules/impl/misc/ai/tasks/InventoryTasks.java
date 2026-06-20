@@ -11,12 +11,21 @@ public class InventoryTasks {
     private static int lastSortTick = -100;
     private static int waitTicks = 0;
 
-    public static BTNode ensureInvManager() {
+    public static BTNode enableInvManager() {
         return new Action(bb -> {
             if (InventoryManager.INSTANCE != null && !InventoryManager.INSTANCE.isEnabled()) {
                 InventoryManager.INSTANCE.setEnabled(true);
             }
-            return BTNode.Status.FAILURE;
+            return BTNode.Status.SUCCESS;
+        });
+    }
+
+    public static BTNode disableInvManager() {
+        return new Action(bb -> {
+            if (InventoryManager.INSTANCE != null && InventoryManager.INSTANCE.isEnabled()) {
+                InventoryManager.INSTANCE.setEnabled(false);
+            }
+            return BTNode.Status.SUCCESS;
         });
     }
 
@@ -40,7 +49,6 @@ public class InventoryTasks {
         return new Action(bb -> {
             if (!(ClientBase.mc.screen instanceof InventoryScreen)) return BTNode.Status.FAILURE;
             waitTicks++;
-            // Close after InvManager finishes or timeout
             if ((!InventoryManager.isPerformingAction && waitTicks > 5) || waitTicks > 200) {
                 ClientBase.mc.setScreen(null);
                 lastSortTick = bb.tickCount;
@@ -48,5 +56,10 @@ public class InventoryTasks {
             }
             return BTNode.Status.RUNNING;
         });
+    }
+
+    public static void reset() {
+        lastSortTick = -100;
+        waitTicks = 0;
     }
 }

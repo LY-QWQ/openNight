@@ -17,6 +17,7 @@ import shit.nilore.modules.Module;
 import shit.nilore.modules.impl.misc.ai.AIRender;
 import shit.nilore.modules.impl.misc.ai.BaritoneBridge;
 import shit.nilore.modules.impl.misc.ai.Blackboard;
+import shit.nilore.modules.impl.misc.ai.MovementHelper;
 import shit.nilore.modules.impl.misc.ai.btree.*;
 import shit.nilore.modules.impl.misc.ai.tasks.*;
 import shit.nilore.modules.impl.movement.Scaffold;
@@ -45,18 +46,24 @@ public class AI extends Module {
     protected void onEnable() {
         blackboard = new Blackboard();
         behaviorTree = buildTree();
-
         sendMsg("§aEnabled - SkyWars Bot");
     }
 
     @Override
     protected void onDisable() {
         if (mc.player != null) {
-            Blackboard.clearMovement();
+            MovementHelper.clearMovement();
             mc.options.keyShift.setDown(false);
             mc.options.keyUse.setDown(false);
         }
-        SurvivalTasks.resetEatingState();
+
+        SurvivalTasks.reset();
+        LootTasks.reset();
+        CombatTasks.reset();
+        InventoryTasks.reset();
+        ExploreTasks.reset();
+        BridgeTasks.reset();
+
         try {
             if (Scaffold.INSTANCE != null) {
                 if (scaffoldModeOverridden) {
@@ -66,10 +73,10 @@ public class AI extends Module {
                 Scaffold.INSTANCE.setEnabled(false);
             }
         } catch (Exception ignored) {}
+
         BaritoneBridge.restoreDefaults();
         BaritoneBridge.cancel();
         gotoTarget = null;
-        BridgeTasks.lastGotoTarget = null;
         blackboard = null;
         behaviorTree = null;
         sendMsg("§cDisabled");
@@ -85,7 +92,6 @@ public class AI extends Module {
     public void onRotation(RotationEvent event) {
         if (blackboard == null) return;
         if (RotationHandler.isRotating) return;
-        // Don't override rotation when baritone is handling movement
         if (BaritoneBridge.isPathing()) return;
     }
 
@@ -164,19 +170,13 @@ public class AI extends Module {
 
         syncSettings();
         blackboard.update();
-
-        // Tick path executor every tick for smooth movement
         BaritoneBridge.tick();
 
-        // Scaffold auto: enable when path has bridge segments nearby (void crossing)
-        // NEVER disable scaffold during combat — falling into void is worse than fighting
         if (Scaffold.INSTANCE != null) {
             boolean shouldScaffold = BaritoneBridge.needsBridgeNearby() && blackboard.hasBlocks();
             if (Scaffold.INSTANCE.isEnabled() != shouldScaffold) {
                 Scaffold.INSTANCE.setEnabled(shouldScaffold);
             }
-            // Ascending bridge: force scaffold to jump (Normal mode + forceJump flag)
-            // This replaces the old mode switch approach
             boolean ascendingBridge = shouldScaffold && BaritoneBridge.needsAscendingNearby();
             if (ascendingBridge && !scaffoldModeOverridden) {
                 Scaffold.INSTANCE.mode.setValue("Normal");
@@ -202,38 +202,78 @@ public class AI extends Module {
         blackboard.gotoTarget = gotoTarget;
     }
 
+    /**
+     * 行为树结构（优先级从高到低）:
+     *
+     * Selector:
+     *   [1] 生存 — 低血量吃食物（最高优先级）
+     *   [2] 搜刮 — 启用 ChestStealer → 搜刮逻辑 → 关闭 ChestStealer
+     *       敌人凑上来(≤5格)时：关箱子 → FAILURE → fall through 到战斗
+     *   [3] 战斗 — 近战/追踪 → 退出时关闭 KillAura
+     *   [4] goto 命令导航
+     *   [5] 背包整理 — 启用 InvManager → 整理逻辑 → 关闭 InvManager
+     *   [6] 空闲 — 随机游荡
+     */
     private BTNode buildTree() {
         return new Selector(
-                // [1] 自救 — 吃食物（最高优先级）
+                // [1] 生存
                 new Selector(
                         SurvivalTasks.criticalEat(),
                         SurvivalTasks.eatFood()
                 ),
-                // [2] 搜刮 — 找箱子（核心循环：装备 > 打架）
-                new Selector(
-                        LootTasks.waitForChestStealer(),
-                        LootTasks.openChest(),
-                        LootTasks.markChestDone(),
-                        LootTasks.navigateToChest(),
-                        LootTasks.pickupItems()
+
+                // [2] 搜刮（模块生命周期：enable → loot → disable）
+                new Sequence(
+                        LootTasks.enableChestStealer(),
+                        new Sequence(
+                                // 敌人中断：近距离敌人出现时关箱子退出搜刮
+                                new Action(bb -> {
+                                    if (bb.nearestEnemy != null && bb.nearestEnemyDist <= 5) {
+                                        if (bb.isContainerOpen()) {
+                                            mc.player.closeContainer();
+                                        }
+                                        return BTNode.Status.FAILURE;
+                                    }
+                                    return BTNode.Status.SUCCESS;
+                                }),
+                                new Selector(
+                                        LootTasks.waitForChestStealer(),
+                                        LootTasks.openChest(),
+                                        LootTasks.markChestDone(),
+                                        LootTasks.navigateToChest(),
+                                        LootTasks.pickupItems()
+                                )
+                        ),
+                        LootTasks.disableChestStealer()
                 ),
-                LootTasks.ensureChestStealer(),
-                // [3] 打人 — 主动出击（有装备了再打）
-                new Selector(
-                        CombatTasks.meleeCombat(),
-                        CombatTasks.trackEnemy()
+
+                // [3] 战斗（战斗结束时关闭 KillAura）
+                new Sequence(
+                        new Selector(
+                                CombatTasks.meleeCombat(),
+                                CombatTasks.trackEnemy()
+                        ),
+                        CombatTasks.disableKillAura()
                 ),
+
                 // [4] goto 命令
                 BridgeTasks.gotoCommand(),
-                // [5] 背包整理
-                InventoryTasks.ensureInvManager(),
-                new Selector(
-                        InventoryTasks.openInventory(),
-                        InventoryTasks.waitForSorting()
+
+                // [5] 背包整理（模块生命周期：enable → sort → disable）
+                new Sequence(
+                        InventoryTasks.enableInvManager(),
+                        new Selector(
+                                InventoryTasks.openInventory(),
+                                InventoryTasks.waitForSorting()
+                        ),
+                        InventoryTasks.disableInvManager()
                 ),
-                // [6] 空闲 — 随便逛
-                ExploreTasks.wander(),
-                ExploreTasks.stopMovement()
+
+                // [6] 空闲
+                new Selector(
+                        ExploreTasks.wander(),
+                        ExploreTasks.stopMovement()
+                )
         );
     }
 

@@ -5,8 +5,8 @@ import shit.nilore.ClientBase;
 import shit.nilore.modules.impl.combat.KillAura;
 import shit.nilore.modules.impl.misc.ai.BaritoneBridge;
 import shit.nilore.modules.impl.misc.ai.Blackboard;
+import shit.nilore.modules.impl.misc.ai.MovementHelper;
 import shit.nilore.modules.impl.misc.ai.btree.*;
-import shit.nilore.modules.impl.movement.Scaffold;
 
 public class CombatTasks {
 
@@ -14,71 +14,50 @@ public class CombatTasks {
     private static int strafeSwitchTick = 0;
 
     /**
-     * 近战：距离 <= 4 时绕着敌人打
+     * 近战：开启 KillAura（自动旋转+攻击），AI 只负责贴身走位。
+     * 不控制 yaw — KillAura 自己处理旋转。
      */
     public static BTNode meleeCombat() {
         return new Sequence(
                 new Condition(bb -> bb.nearestEnemy != null && bb.nearestEnemyDist <= 4),
                 new Condition(bb -> !bb.isContainerOpen()),
                 new Action(bb -> {
-                    // Pause path instead of cancel — scaffold needs to stay active over void
                     BaritoneBridge.pause();
-                    Player enemy = bb.nearestEnemy;
 
                     if (!KillAura.INSTANCE.isEnabled()) {
-                        bb.log("Fighting: " + enemy.getName().getString());
+                        bb.log("Fighting: " + bb.nearestEnemy.getName().getString());
                     }
                     KillAura.INSTANCE.setEnabled(true);
 
-                    // 绕着敌人走
+                    // 随机切换左右走位方向
                     strafeSwitchTick++;
                     if (strafeSwitchTick > 20 + (int) (Math.random() * 15)) {
                         strafeDir = -strafeDir;
                         strafeSwitchTick = 0;
                     }
 
-                    double dx = ClientBase.mc.player.getX() - enemy.getX();
-                    double dz = ClientBase.mc.player.getZ() - enemy.getZ();
-                    double dist = Math.sqrt(dx * dx + dz * dz);
+                    // KillAura 会自动转向敌人，W 向前靠近，A/D 左右走位
+                    ClientBase.mc.options.keyUp.setDown(true);
+                    ClientBase.mc.options.keyDown.setDown(false);
+                    ClientBase.mc.options.keyLeft.setDown(strafeDir == -1);
+                    ClientBase.mc.options.keyRight.setDown(strafeDir == 1);
+                    ClientBase.mc.options.keySprint.setDown(true);
+                    ClientBase.mc.options.keyJump.setDown(bb.nearestEnemyDist < 1.5);
 
-                    if (dist > 0.1) {
-                        double nx = dx / dist;
-                        double nz = dz / dist;
-                        double sx = -nz * strafeDir;
-                        double sz = nx * strafeDir;
-
-                        double targetX = enemy.getX() + nx * 1.2 + sx * 0.6;
-                        double targetZ = enemy.getZ() + nz * 1.2 + sz * 0.6;
-
-                        double tdx = targetX - ClientBase.mc.player.getX();
-                        double tdz = targetZ - ClientBase.mc.player.getZ();
-                        float yaw = (float) (-Math.toDegrees(Math.atan2(tdx, tdz)));
-
-                        Blackboard.smoothYaw(yaw, 30f);
-                        ClientBase.mc.options.keyUp.setDown(true);
-                        ClientBase.mc.options.keySprint.setDown(true);
-                        ClientBase.mc.options.keyJump.setDown(bb.nearestEnemyDist < 1.5);
-                    }
-
-                    return BTNode.Status.SUCCESS;
+                    return BTNode.Status.RUNNING;
                 })
         );
     }
 
-    /**
-     * 追踪：距离 4-50 时主动走向敌人（需要有剑，否则先搜刮）
-     */
     public static BTNode trackEnemy() {
         return new Sequence(
                 new Condition(bb -> bb.hasSword),
                 new Condition(bb -> bb.nearestEnemy != null && bb.nearestEnemyDist > 4 && bb.nearestEnemyDist <= 50),
                 new Condition(bb -> !bb.isContainerOpen()),
                 new Action(bb -> {
-                    KillAura.INSTANCE.setEnabled(false);
                     BaritoneBridge.resume();
                     Player enemy = bb.nearestEnemy;
 
-                    // No path yet: create one. Otherwise re-path every 20 ticks (1s)
                     if (!BaritoneBridge.isPathing()) {
                         BaritoneBridge.setGoalAndPath("near", enemy.blockPosition(), 2);
                     } else if (bb.tickCount % 20 == 0) {
@@ -90,15 +69,20 @@ public class CombatTasks {
         );
     }
 
-    /**
-     * 战斗结束后关闭战斗模块
-     */
-    public static BTNode disableCombatModules() {
+    public static BTNode disableKillAura() {
         return new Action(bb -> {
-            if (!KillAura.INSTANCE.isEnabled()) return BTNode.Status.FAILURE;
-            KillAura.INSTANCE.setEnabled(false);
+            if (KillAura.INSTANCE != null && KillAura.INSTANCE.isEnabled()) {
+                KillAura.INSTANCE.setEnabled(false);
+            }
             BaritoneBridge.resume();
+            MovementHelper.clearMovement();
+            strafeSwitchTick = 0;
             return BTNode.Status.SUCCESS;
         });
+    }
+
+    public static void reset() {
+        strafeDir = 1;
+        strafeSwitchTick = 0;
     }
 }
