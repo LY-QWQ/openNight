@@ -54,7 +54,7 @@ public class BaritoneBridge {
             // Clear movement keys
             net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
             if (mc.player != null) {
-                MovementHelper.clearMovement();
+                Blackboard.clearMovement();
             }
         }
         currentExecutor = null;

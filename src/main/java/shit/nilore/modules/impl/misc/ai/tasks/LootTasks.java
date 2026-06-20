@@ -9,7 +9,6 @@ import net.minecraft.world.phys.Vec3;
 import shit.nilore.ClientBase;
 import shit.nilore.modules.impl.misc.ai.BaritoneBridge;
 import shit.nilore.modules.impl.misc.ai.Blackboard;
-import shit.nilore.modules.impl.misc.ai.MovementHelper;
 import shit.nilore.modules.impl.misc.ai.btree.*;
 import shit.nilore.modules.impl.player.ChestStealer;
 import shit.nilore.utils.game.RotationUtil;
@@ -21,21 +20,12 @@ public class LootTasks {
     private static BlockPos lootingChest = null;
     private static BlockPos lastChestTarget = null;
 
-    public static BTNode enableChestStealer() {
+    public static BTNode ensureChestStealer() {
         return new Action(bb -> {
             if (ChestStealer.INSTANCE != null && !ChestStealer.INSTANCE.isEnabled()) {
                 ChestStealer.INSTANCE.setEnabled(true);
             }
-            return BTNode.Status.SUCCESS;
-        });
-    }
-
-    public static BTNode disableChestStealer() {
-        return new Action(bb -> {
-            if (ChestStealer.INSTANCE != null && ChestStealer.INSTANCE.isEnabled()) {
-                ChestStealer.INSTANCE.setEnabled(false);
-            }
-            return BTNode.Status.SUCCESS;
+            return BTNode.Status.FAILURE;
         });
     }
 
@@ -73,8 +63,8 @@ public class LootTasks {
                     Vec3 chestCenter = new Vec3(chest.getX() + 0.5, chest.getY() + 0.5, chest.getZ() + 0.5);
                     Vec3 eyePos = ClientBase.mc.player.position().add(0, ClientBase.mc.player.getEyeHeight(), 0);
                     Rotation rot = RotationUtil.rotationTo(eyePos, chestCenter);
-                    MovementHelper.smoothYaw(rot.getYaw(), 30f);
-                    MovementHelper.smoothPitch(rot.getPitch(), 30f);
+                    Blackboard.smoothYaw(rot.getYaw(), 30f);
+                    Blackboard.smoothPitch(rot.getPitch(), 30f);
 
                     if (!chest.equals(lootingChest)) {
                         lootingChest = chest;
@@ -154,7 +144,7 @@ public class LootTasks {
                     ItemEntity item = bb.nearestItem;
                     double dx = item.getX() - ClientBase.mc.player.getX();
                     double dz = item.getZ() - ClientBase.mc.player.getZ();
-                    MovementHelper.moveToward(dx, dz);
+                    Blackboard.moveToward(dx, dz);
                     return BTNode.Status.RUNNING;
                 })
         );

@@ -11,21 +11,12 @@ public class InventoryTasks {
     private static int lastSortTick = -100;
     private static int waitTicks = 0;
 
-    public static BTNode enableInvManager() {
+    public static BTNode ensureInvManager() {
         return new Action(bb -> {
             if (InventoryManager.INSTANCE != null && !InventoryManager.INSTANCE.isEnabled()) {
                 InventoryManager.INSTANCE.setEnabled(true);
             }
-            return BTNode.Status.SUCCESS;
-        });
-    }
-
-    public static BTNode disableInvManager() {
-        return new Action(bb -> {
-            if (InventoryManager.INSTANCE != null && InventoryManager.INSTANCE.isEnabled()) {
-                InventoryManager.INSTANCE.setEnabled(false);
-            }
-            return BTNode.Status.SUCCESS;
+            return BTNode.Status.FAILURE;
         });
     }
 

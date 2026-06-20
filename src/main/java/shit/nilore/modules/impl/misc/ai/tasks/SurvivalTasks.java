@@ -53,7 +53,7 @@ public class SurvivalTasks {
         );
     }
 
-    public static void reset() {
+    public static void resetEatingState() {
         if (eatingSlot != -1) {
             ClientBase.mc.options.keyUse.setDown(false);
             if (prevSlot != -1 && ClientBase.mc.player != null) {

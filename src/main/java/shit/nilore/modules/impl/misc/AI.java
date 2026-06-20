@@ -17,7 +17,6 @@ import shit.nilore.modules.Module;
 import shit.nilore.modules.impl.misc.ai.AIRender;
 import shit.nilore.modules.impl.misc.ai.BaritoneBridge;
 import shit.nilore.modules.impl.misc.ai.Blackboard;
-import shit.nilore.modules.impl.misc.ai.MovementHelper;
 import shit.nilore.modules.impl.misc.ai.btree.*;
 import shit.nilore.modules.impl.misc.ai.tasks.*;
 import shit.nilore.modules.impl.movement.Scaffold;
@@ -52,18 +51,11 @@ public class AI extends Module {
     @Override
     protected void onDisable() {
         if (mc.player != null) {
-            MovementHelper.clearMovement();
+            Blackboard.clearMovement();
             mc.options.keyShift.setDown(false);
             mc.options.keyUse.setDown(false);
         }
-
-        SurvivalTasks.reset();
-        LootTasks.reset();
-        CombatTasks.reset();
-        InventoryTasks.reset();
-        ExploreTasks.reset();
-        BridgeTasks.reset();
-
+        SurvivalTasks.resetEatingState();
         try {
             if (Scaffold.INSTANCE != null) {
                 if (scaffoldModeOverridden) {
@@ -73,10 +65,10 @@ public class AI extends Module {
                 Scaffold.INSTANCE.setEnabled(false);
             }
         } catch (Exception ignored) {}
-
         BaritoneBridge.restoreDefaults();
         BaritoneBridge.cancel();
         gotoTarget = null;
+        BridgeTasks.lastGotoTarget = null;
         blackboard = null;
         behaviorTree = null;
         sendMsg("§cDisabled");
@@ -203,82 +195,47 @@ public class AI extends Module {
     }
 
     /**
-     * 行为树结构（优先级从高到低）:
+     * 行为树结构（扁平 Selector，优先级从高到低）:
      *
-     * Selector:
-     *   [1] 生存 — 低血量吃食物（最高优先级）
-     *   [2] 搜刮 — 启用 ChestStealer → 搜刮逻辑 → 关闭 ChestStealer
-     *       敌人凑上来(≤5格)时：关箱子 → FAILURE → fall through 到战斗
-     *   [3] 战斗 — 近战/追踪 → 退出时关闭 KillAura
-     *   [4] goto 命令导航
-     *   [5] 背包整理 — 启用 InvManager → 整理逻辑 → 关闭 InvManager
-     *   [6] 空闲 — 随机游荡
+     * [1] 自救 — 吃食物（最高优先级）
+     * [2] 搜刮 — 找箱子（核心循环：装备 > 打架）
+     * [3] 打人 — 主动出击（有装备了再打）
+     * [4] goto 命令导航
+     * [5] 背包整理
+     * [6] 空闲 — 随便逛
      */
     private BTNode buildTree() {
         return new Selector(
-                // [1] 生存
+                // [1] 自救
                 new Selector(
                         SurvivalTasks.criticalEat(),
                         SurvivalTasks.eatFood()
                 ),
-
-                // [2] 搜刮（模块生命周期：enable → loot → disable）
-                new Sequence(
-                        LootTasks.enableChestStealer(),
-                        new Sequence(
-                                // 敌人中断：近距离敌人出现时关箱子退出搜刮
-                                new Action(bb -> {
-                                    if (bb.nearestEnemy != null && bb.nearestEnemyDist <= 5) {
-                                        if (bb.isContainerOpen()) {
-                                            mc.player.closeContainer();
-                                        }
-                                        return BTNode.Status.FAILURE;
-                                    }
-                                    return BTNode.Status.SUCCESS;
-                                }),
-                                new Selector(
-                                        LootTasks.waitForChestStealer(),
-                                        LootTasks.openChest(),
-                                        LootTasks.markChestDone(),
-                                        LootTasks.navigateToChest(),
-                                        LootTasks.pickupItems()
-                                )
-                        ),
-                        LootTasks.disableChestStealer()
-                ),
-
-                // [3] 战斗
+                // [2] 搜刮
                 new Selector(
-                        // 有敌人 → 追踪/近战 → 战斗结束时清理
-                        new Sequence(
-                                new Selector(
-                                        CombatTasks.meleeCombat(),
-                                        CombatTasks.trackEnemy()
-                                ),
-                                CombatTasks.disableKillAura()
-                        ),
-                        // 无敌人 → 仅清理残留战斗状态
-                        CombatTasks.disableKillAura()
+                        LootTasks.waitForChestStealer(),
+                        LootTasks.openChest(),
+                        LootTasks.markChestDone(),
+                        LootTasks.navigateToChest(),
+                        LootTasks.pickupItems()
                 ),
-
+                LootTasks.ensureChestStealer(),
+                // [3] 打人
+                new Selector(
+                        CombatTasks.meleeCombat(),
+                        CombatTasks.trackEnemy()
+                ),
                 // [4] goto 命令
                 BridgeTasks.gotoCommand(),
-
-                // [5] 背包整理（模块生命周期：enable → sort → disable）
-                new Sequence(
-                        InventoryTasks.enableInvManager(),
-                        new Selector(
-                                InventoryTasks.openInventory(),
-                                InventoryTasks.waitForSorting()
-                        ),
-                        InventoryTasks.disableInvManager()
-                ),
-
-                // [6] 空闲
+                // [5] 背包整理
+                InventoryTasks.ensureInvManager(),
                 new Selector(
-                        ExploreTasks.wander(),
-                        ExploreTasks.stopMovement()
-                )
+                        InventoryTasks.openInventory(),
+                        InventoryTasks.waitForSorting()
+                ),
+                // [6] 空闲
+                ExploreTasks.wander(),
+                ExploreTasks.stopMovement()
         );
     }
 

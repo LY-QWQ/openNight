@@ -3,7 +3,6 @@ package shit.nilore.modules.impl.misc.ai.tasks;
 import net.minecraft.core.BlockPos;
 import shit.nilore.modules.impl.misc.ai.BaritoneBridge;
 import shit.nilore.modules.impl.misc.ai.Blackboard;
-import shit.nilore.modules.impl.misc.ai.MovementHelper;
 import shit.nilore.modules.impl.misc.ai.btree.*;
 
 import java.util.Random;
@@ -34,7 +33,7 @@ public class ExploreTasks {
                 new Condition(bb -> {
                     if (idleTicks < idleTarget) {
                         idleTicks++;
-                        MovementHelper.clearMovement();
+                        Blackboard.clearMovement();
                         return false;
                     }
                     return true;
@@ -71,7 +70,7 @@ public class ExploreTasks {
             if (bb.nearestEnemy != null && bb.nearestEnemyDist <= 6) return BTNode.Status.FAILURE;
             if (bb.isContainerOpen()) return BTNode.Status.FAILURE;
             if (BaritoneBridge.isPathing()) return BTNode.Status.FAILURE;
-            MovementHelper.clearMovement();
+            Blackboard.clearMovement();
             return BTNode.Status.SUCCESS;
         });
     }
