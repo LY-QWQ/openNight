@@ -12,6 +12,7 @@ import shit.nilore.gui.IntroAnimation;
 import shit.nilore.hud.HudElement;
 import shit.nilore.hud.KeyBindsHud;
 import shit.nilore.hud.LieDetector;
+import shit.nilore.hud.MusicPlayerHud;
 import shit.nilore.hud.ModuleListHud;
 import shit.nilore.hud.PlayerListHud;
 import shit.nilore.hud.PotionEffectsHud;
@@ -32,6 +33,7 @@ public class HudManager {
         this.registerHudElement(new PlayerListHud());
         this.registerHudElement(new PotionEffectsHud());
         this.registerHudElement(new LieDetector());
+        this.registerHudElement(new MusicPlayerHud());
     }
 
     private void registerHudElement(HudElement hudElement) {

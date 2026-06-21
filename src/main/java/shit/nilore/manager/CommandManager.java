@@ -8,6 +8,7 @@ import shit.nilore.command.impl.BindCommand;
 import shit.nilore.command.impl.ConfigCommand;
 import shit.nilore.command.impl.InfoCommand;
 import shit.nilore.command.impl.LanguageCommand;
+import shit.nilore.command.impl.MusicCommand;
 import shit.nilore.command.impl.ToggleCommand;
 import shit.nilore.event.impl.ChatEvent;
 import shit.nilore.utils.misc.ChatUtil;
@@ -27,6 +28,7 @@ public class CommandManager {
         this.registerCommand(new LanguageCommand());
         this.registerCommand(new ToggleCommand());
         this.registerCommand(new InfoCommand());
+        this.registerCommand(new MusicCommand());
     }
 
     private void registerCommand(Command command) {

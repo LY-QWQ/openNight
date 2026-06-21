@@ -175,6 +175,10 @@ dependencies {
     // Dev Auth
     runtimeOnly("me.djtheredstoner:DevAuth-forge-latest:1.2.2")
 
+    // MP3 decoding for MusicPlayer
+    implementation 'javazoom:jlayer:1.0.1'
+    implementation 'com.googlecode.soundlibs:mp3spi:1.9.5.4'
+
     // Example mod dependency with JEI - using fg.deobf() ensures the dependency is remapped to your development mappings
     // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
     // compileOnly fg.deobf("mezz.jei:jei-${mc_version}-common-api:${jei_version}")
