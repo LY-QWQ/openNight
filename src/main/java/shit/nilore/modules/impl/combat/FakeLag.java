@@ -1,7 +1,11 @@
 package shit.nilore.modules.impl.combat;
 
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.*;
 import java.util.ArrayList;
 import java.util.List;
+import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundPlayerPositionPacket;
@@ -13,10 +17,13 @@ import net.minecraft.network.protocol.game.ServerboundPlayerActionPacket;
 import net.minecraft.network.protocol.game.ServerboundSwingPacket;
 import net.minecraft.network.protocol.game.ServerboundUseItemOnPacket;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import org.joml.Matrix4f;
 import shit.nilore.event.EventTarget;
 import shit.nilore.event.impl.PacketEvent;
 import shit.nilore.event.impl.ReceivePacketEvent;
+import shit.nilore.event.impl.RenderEvent;
 import shit.nilore.event.impl.TickEvent;
 import shit.nilore.modules.Category;
 import shit.nilore.modules.Module;
@@ -24,6 +31,7 @@ import shit.nilore.settings.impl.BooleanSetting;
 import shit.nilore.settings.impl.ModeSetting;
 import shit.nilore.settings.impl.NumberSetting;
 import shit.nilore.utils.misc.PacketUtil;
+import shit.nilore.utils.render.RenderUtil;
 
 /**
  * FakeLag — 缓存出站位置数据包，模拟高延迟
@@ -35,6 +43,7 @@ import shit.nilore.utils.misc.PacketUtil;
  * Constant 模式: 始终缓存
  *
  * 自动释放: 攻击、交互、受伤、击退、服务端传送
+ * 渲染: 缓存期间显示位置轨迹线 + 首位置方块
  */
 public class FakeLag extends Module {
 
@@ -51,7 +60,6 @@ public class FakeLag extends Module {
     private final List<Packet<?>> packetQueue = new ArrayList<>();
     private long lastFlushTime = 0;
     private boolean isEnemyNearby = false;
-    private final List<Vec3> positionTrail = new ArrayList<>();
 
     public FakeLag() {
         super("FakeLag", Category.COMBAT);
@@ -61,7 +69,6 @@ public class FakeLag extends Module {
     @Override
     protected void onEnable() {
         packetQueue.clear();
-        positionTrail.clear();
         lastFlushTime = 0;
         isEnemyNearby = false;
     }
@@ -71,7 +78,7 @@ public class FakeLag extends Module {
         flushAll();
     }
 
-    // --- Tick: 检测敌人、超时释放、记录轨迹 ---
+    // --- Tick: 检测敌人、超时释放 ---
     @EventTarget
     public void onTick(TickEvent event) {
         if (mc.player == null || mc.level == null) return;
@@ -83,9 +90,6 @@ public class FakeLag extends Module {
                 .anyMatch(p -> mc.player.distanceTo(p) <= r);
 
         if (!packetQueue.isEmpty()) {
-            positionTrail.add(mc.player.position());
-            while (positionTrail.size() > 200) positionTrail.remove(0);
-
             long elapsed = System.currentTimeMillis() - lastFlushTime;
             if (elapsed >= delay.getValue().longValue()) {
                 flushAll();
@@ -159,13 +163,97 @@ public class FakeLag extends Module {
         packetQueue.add(packet);
     }
 
+    // --- 渲染: 轨迹线 + 首位置方块 ---
+    @EventTarget
+    public void onRender(RenderEvent event) {
+        if (packetQueue.isEmpty() || mc.player == null || mc.gameRenderer == null) return;
+
+        List<Vec3> positions = getQueuedPositions();
+        if (positions.size() < 1) return;
+
+        Vec3 cam = mc.gameRenderer.getMainCamera().getPosition();
+        PoseStack poseStack = event.poseStack();
+        poseStack.pushPose();
+        poseStack.translate(-cam.x, -cam.y, -cam.z);
+
+        // 首位置方块 (cyan ghost)
+        Vec3 first = positions.get(0);
+        AABB box = new AABB(
+                first.x - 0.3, first.y, first.z - 0.3,
+                first.x + 0.3, first.y + 1.8, first.z + 0.3
+        );
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        RenderSystem.disableDepthTest();
+        RenderSystem.depthMask(false);
+
+        RenderSystem.setShaderColor(0.0f, 0.9f, 1.0f, 0.15f);
+        RenderUtil.drawSolidBox(box, poseStack);
+        RenderSystem.setShaderColor(0.0f, 0.9f, 1.0f, 0.6f);
+        RenderUtil.drawOutlineBox(box, poseStack);
+
+        // 轨迹线 (line strip through all queued positions)
+        if (positions.size() >= 2) {
+            RenderSystem.setShader(GameRenderer::getRendertypeLinesShader);
+            RenderSystem.lineWidth(2.5f);
+            RenderSystem.disableCull();
+
+            Matrix4f matrix = poseStack.last().pose();
+            org.joml.Matrix3f normalMat = poseStack.last().normal();
+            BufferBuilder builder = Tesselator.getInstance().getBuilder();
+            builder.begin(VertexFormat.Mode.LINES, DefaultVertexFormat.POSITION_COLOR_NORMAL);
+
+            float r = 0.0f, g = 0.9f, b = 1.0f, a = 0.8f;
+            double offset = 0.5; // block center Y offset
+
+            for (int i = 0; i < positions.size() - 1; i++) {
+                Vec3 start = positions.get(i);
+                Vec3 end = positions.get(i + 1);
+
+                // Coalesce collinear segments
+                int next = i + 1;
+                while (next + 1 < positions.size()) {
+                    Vec3 nextEnd = positions.get(next + 1);
+                    double dx1 = end.x - start.x, dy1 = end.y - start.y, dz1 = end.z - start.z;
+                    double dx2 = nextEnd.x - end.x, dy2 = nextEnd.y - end.y, dz2 = nextEnd.z - end.z;
+                    if (Math.abs(dx1 - dx2) < 0.01 && Math.abs(dy1 - dy2) < 0.01 && Math.abs(dz1 - dz2) < 0.01) {
+                        end = nextEnd;
+                        next++;
+                    } else {
+                        break;
+                    }
+                }
+                i = next - 1;
+
+                float x1 = (float) start.x, y1 = (float) (start.y + offset), z1 = (float) start.z;
+                float x2 = (float) end.x, y2 = (float) (end.y + offset), z2 = (float) end.z;
+
+                float dx = x2 - x1, dy = y2 - y1, dz = z2 - z1;
+                float len = (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
+                float nx = len > 0 ? dx / len : 0f;
+                float ny = len > 0 ? dy / len : 0f;
+                float nz = len > 0 ? dz / len : 0f;
+
+                builder.vertex(matrix, x1, y1, z1).color(r, g, b, a).normal(normalMat, nx, ny, nz).endVertex();
+                builder.vertex(matrix, x2, y2, z2).color(r, g, b, a).normal(normalMat, nx, ny, nz).endVertex();
+            }
+
+            Tesselator.getInstance().end();
+            RenderSystem.enableCull();
+        }
+
+        RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
+        RenderSystem.enableDepthTest();
+        RenderSystem.depthMask(true);
+        RenderSystem.disableBlend();
+
+        poseStack.popPose();
+    }
+
     // --- 释放所有缓存包 ---
     @SuppressWarnings({"rawtypes", "unchecked"})
     private void flushAll() {
-        if (packetQueue.isEmpty()) {
-            positionTrail.clear();
-            return;
-        }
+        if (packetQueue.isEmpty()) return;
         for (Packet<?> packet : packetQueue) {
             try {
                 if (mc.getConnection() != null) {
@@ -177,7 +265,6 @@ public class FakeLag extends Module {
             }
         }
         packetQueue.clear();
-        positionTrail.clear();
         lastFlushTime = System.currentTimeMillis();
     }
 
@@ -191,11 +278,26 @@ public class FakeLag extends Module {
                 || packet instanceof ServerboundPlayerActionPacket;
     }
 
-    public boolean isLagging() {
-        return !packetQueue.isEmpty();
+    /**
+     * 从缓存的移动包中提取位置
+     */
+    private List<Vec3> getQueuedPositions() {
+        List<Vec3> positions = new ArrayList<>();
+        for (Packet<?> packet : packetQueue) {
+            if (packet instanceof ServerboundMovePlayerPacket.PosRot p) {
+                positions.add(new Vec3(p.getX(0), p.getY(0), p.getZ(0)));
+            } else if (packet instanceof ServerboundMovePlayerPacket.Pos p) {
+                positions.add(new Vec3(p.getX(0), p.getY(0), p.getZ(0)));
+            }
+        }
+        // 追加玩家当前位置作为终点
+        if (!positions.isEmpty() && mc.player != null) {
+            positions.add(mc.player.position());
+        }
+        return positions;
     }
 
-    public List<Vec3> getPositionTrail() {
-        return positionTrail;
+    public boolean isLagging() {
+        return !packetQueue.isEmpty();
     }
 }
