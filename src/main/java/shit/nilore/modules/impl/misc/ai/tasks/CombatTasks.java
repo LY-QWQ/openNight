@@ -23,6 +23,7 @@ public class CombatTasks {
                 new Action(bb -> {
                     // Pause path instead of cancel — scaffold needs to stay active over void
                     BaritoneBridge.pause();
+                    bb.renderPath.clear();
                     Player enemy = bb.nearestEnemy;
 
                     if (!KillAura.INSTANCE.isEnabled()) {

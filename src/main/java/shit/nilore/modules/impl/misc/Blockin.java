@@ -113,9 +113,6 @@ public class Blockin extends Module {
             Vec3 placeVec = new Vec3(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
             if (mc.player.getEyePosition().distanceTo(placeVec) > 4.5) continue;
 
-            // 切换物品栏
-            mc.player.getInventory().selected = blockSlot;
-
             // 计算点击向量
             Vec3 hitVec = new Vec3(
                     neighbor.getX() + 0.5 + dir.getStepX() * 0.5,
@@ -125,13 +122,15 @@ public class Blockin extends Module {
 
             BlockHitResult hitResult = new BlockHitResult(hitVec, dir, neighbor, false);
 
-            // 旋转
+            // 旋转: 直接设置玩家旋转, 服务端移动包会携带此旋转
             if (rotate.getValue()) {
                 float[] rot = calcRotation(hitVec);
                 mc.player.setYRot(rot[0]);
                 mc.player.setXRot(rot[1]);
             }
 
+            // 切换物品栏并放置
+            mc.player.getInventory().selected = blockSlot;
             mc.gameMode.useItemOn(mc.player, InteractionHand.MAIN_HAND, hitResult);
             mc.player.swing(InteractionHand.MAIN_HAND);
             return true;
@@ -144,7 +143,7 @@ public class Blockin extends Module {
         for (int i = 0; i < 9; i++) {
             ItemStack stack = mc.player.getInventory().getItem(i);
             if (stack.isEmpty() || !(stack.getItem() instanceof BlockItem)) continue;
-            if (BlockUtil.isPlaceable(stack)) return i;
+            if (stack.getCount() > 0) return i;
         }
         return -1;
     }
