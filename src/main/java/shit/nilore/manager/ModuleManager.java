@@ -62,6 +62,7 @@ import shit.nilore.modules.impl.render.ESP;
 import shit.nilore.modules.impl.render.FullBright;
 import shit.nilore.modules.impl.render.Interface;
 import shit.nilore.modules.impl.render.ItemTags;
+import shit.nilore.modules.impl.render.LyricsModule;
 import shit.nilore.modules.impl.render.NameProtect;
 import shit.nilore.modules.impl.render.NameTags;
 import shit.nilore.modules.impl.render.NoHurtCam;
@@ -141,6 +142,7 @@ public class ModuleManager extends ClientBase {
         this.register(new FullBright());
         this.register(new Interface());
         this.register(new ItemTags());
+        this.register(new LyricsModule());
         this.register(new NameProtect());
         this.register(new NameTags());
         this.register(new NoHurtCam());

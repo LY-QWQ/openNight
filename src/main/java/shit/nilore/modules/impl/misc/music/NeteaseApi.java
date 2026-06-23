@@ -10,8 +10,11 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class NeteaseApi {
     private static final String BASE = "https://music.163.com/api";
@@ -77,6 +80,37 @@ public class NeteaseApi {
                     long duration = obj.has("dt") ? obj.get("dt").getAsLong() : 0;
                     return new SongInfo(songId, name, artistBuilder.toString(), albumName, picUrl, duration);
                 });
+    }
+
+    private static final Pattern LRC_PATTERN = Pattern.compile("\\[(\\d{2}):(\\d{2})\\.(\\d{2,3})](.*)");
+
+    public static CompletableFuture<List<LyricLine>> getLyrics(long songId) {
+        return get("/song/lyric", "id=" + songId + "&lv=1&tv=1")
+                .thenApply(root -> {
+                    JsonObject lrc = root.getAsJsonObject("lrc");
+                    if (lrc == null || !lrc.has("lyric")) return Collections.emptyList();
+                    String raw = lrc.get("lyric").getAsString();
+                    return parseLrc(raw);
+                });
+    }
+
+    private static List<LyricLine> parseLrc(String raw) {
+        List<LyricLine> lines = new ArrayList<>();
+        for (String line : raw.split("\n")) {
+            Matcher m = LRC_PATTERN.matcher(line);
+            if (!m.matches()) continue;
+            String frac = m.group(3);
+            long fracMs = frac.length() == 2 ? Long.parseLong(frac) * 10 : Long.parseLong(frac);
+            long ms = Long.parseLong(m.group(1)) * 60_000
+                    + Long.parseLong(m.group(2)) * 1000
+                    + fracMs;
+            String text = m.group(4).trim();
+            if (!text.isEmpty()) {
+                lines.add(new LyricLine(ms, text));
+            }
+        }
+        Collections.sort(lines, (a, b) -> Long.compare(a.timeMs(), b.timeMs()));
+        return lines;
     }
 
     private static CompletableFuture<JsonObject> get(String path, String params) {

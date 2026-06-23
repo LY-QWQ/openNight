@@ -2,14 +2,16 @@ package shit.nilore.gui;
 
 import java.util.ArrayList;
 import java.util.List;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import shit.nilore.modules.impl.misc.MusicPlayer;
 import shit.nilore.modules.impl.misc.music.AudioPlayer;
 import shit.nilore.modules.impl.misc.music.NeteaseApi;
 import shit.nilore.modules.impl.misc.music.SongInfo;
+import shit.nilore.modules.impl.render.LyricsModule;
+import shit.nilore.NiloreClient;
 import shit.nilore.render.DrawContext;
 import shit.nilore.render.FontPresets;
 import shit.nilore.render.FontRenderer;
@@ -21,9 +23,13 @@ import shit.nilore.render.RoundedRectangle;
 import shit.nilore.utils.animation.SmoothAnimationTimer;
 import shit.nilore.utils.math.Easings;
 import shit.nilore.utils.render.ColorUtil;
+import org.lwjgl.glfw.GLFW;
 
 public class MusicPlayerScreen extends Screen {
-    private EditBox searchBox;
+    // custom search input
+    private String searchInput = "";
+    private int cursorPos = 0;
+
     private final List<SongInfo> searchResults = new ArrayList<>();
     private final List<SongInfo> playQueue = new ArrayList<>();
     private int queueIndex = -1;
@@ -35,27 +41,30 @@ public class MusicPlayerScreen extends Screen {
     private final SmoothAnimationTimer openAnim = new SmoothAnimationTimer();
     private final SmoothAnimationTimer scrollAnim = new SmoothAnimationTimer();
 
-    private static final float PANEL_W = 400;
-    private static final float PANEL_H = 320;
-    private static final float SEARCH_H = 28;
-    private static final float ROW_H = 36;
-    private static final float BOTTOM_H = 44;
-    private static final float RADIUS = 10;
-    private static final float PADDING = 8;
+    private static final float PANEL_W = 380;
+    private static final float PANEL_H = 340;
+    private static final float SEARCH_H = 32;
+    private static final float ROW_H = 42;
+    private static final float BOTTOM_H = 52;
+    private static final float RADIUS = 14;
+    private static final float PAD = 14;
 
-    // dark palette — matches other HUDs (black bg, white text, semi-transparent)
-    private static final int ROW_BG = ColorUtil.fromARGB(0, 0, 0, 60);
-    private static final int ROW_HOVER = ColorUtil.fromARGB(0, 0, 0, 100);
-    private static final int ROW_PLAYING = ColorUtil.fromARGB(0, 0, 0, 120);
-    private static final int ACCENT = ColorUtil.fromARGB(255, 255, 255, 255);
-    private static final int TEXT_PRIMARY = ColorUtil.fromARGB(255, 255, 255, 255);
-    private static final int TEXT_SECONDARY = ColorUtil.fromARGB(255, 255, 255, 140);
-    private static final int TEXT_DIM = ColorUtil.fromARGB(255, 255, 255, 100);
-    private static final int TEXT_BLACK = ColorUtil.fromARGB(0, 0, 0, 255);
+    private static final int INPUT_BG = ColorUtil.fromARGB(255, 255, 255, 12);
+    private static final int ROW_HOVER = ColorUtil.fromARGB(255, 255, 255, 10);
+    private static final int ROW_PLAYING = ColorUtil.fromARGB(255, 255, 255, 15);
+    private static final int DIVIDER = ColorUtil.fromARGB(255, 255, 255, 8);
+    private static final int TEXT_PRIMARY = ColorUtil.fromARGB(255, 255, 255, 220);
+    private static final int TEXT_SECONDARY = ColorUtil.fromARGB(255, 255, 255, 100);
+    private static final int TEXT_DIM = ColorUtil.fromARGB(255, 255, 255, 60);
+    private static final int ACCENT = ColorUtil.fromARGB(255, 255, 255, 200);
+    private static final int WHITE = ColorUtil.fromARGB(255, 255, 255, 255);
+    private static final int CURSOR_COLOR = ColorUtil.fromARGB(255, 255, 255, 180);
 
-    private final FontRenderer titleFont = FontPresets.axiformaBold(13);
-    private final FontRenderer subFont = FontPresets.axiformaRegular(11);
-    private final FontRenderer smallFont = FontPresets.axiformaRegular(10);
+    private final FontRenderer titleFont = FontPresets.pingfang(17);
+    private final FontRenderer subFont = FontPresets.pingfang(14);
+    private final FontRenderer smallFont = FontPresets.pingfang(14);
+    private final FontRenderer timeFont = FontPresets.pingfang(15);
+    private final FontRenderer inputFont = FontPresets.pingfang(18);
 
     public MusicPlayerScreen() {
         super(Component.literal("Music Player"));
@@ -63,19 +72,11 @@ public class MusicPlayerScreen extends Screen {
 
     @Override
     protected void init() {
-        float panelX = (this.width - PANEL_W) / 2f;
-        float panelY = (this.height - PANEL_H) / 2f;
-        searchBox = new EditBox(this.font, (int)(panelX + PADDING + 2), (int)(panelY + PADDING + 2),
-                (int)(PANEL_W - PADDING * 2 - 4 - 60), (int)(SEARCH_H - 4), Component.literal("Search"));
-        searchBox.setMaxLength(100);
-        searchBox.setResponder(null);
-        addWidget(searchBox);
-        setInitialFocus(searchBox);
     }
 
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        openAnim.animate(1.0, 0.25, Easings.EASE_OUT_POW3);
+        openAnim.animate(1.0, 0.3, Easings.EASE_OUT_QUAD);
         openAnim.tick();
         float openProgress = openAnim.getValueF();
 
@@ -87,7 +88,7 @@ public class MusicPlayerScreen extends Screen {
             float panelX = (this.width - PANEL_W) / 2f;
             float panelY = (this.height - PANEL_H) / 2f;
 
-            float scale = 0.95f + 0.05f * openProgress;
+            float scale = 0.97f + 0.03f * openProgress;
             float centerX = this.width / 2f;
             float centerY = this.height / 2f;
             drawContext.save();
@@ -95,61 +96,79 @@ public class MusicPlayerScreen extends Screen {
             drawContext.scale(scale, scale);
             drawContext.translate(-centerX, -centerY);
 
-            int overlayAlpha = (int)(100 * openProgress);
-            Paint overlayPaint = new Paint().setColor(ColorUtil.fromARGB(0, 0, 0, overlayAlpha));
-            drawContext.drawRectXYWH(0, 0, this.width, this.height, overlayPaint);
+            // overlay
+            drawContext.drawRectXYWH(0, 0, this.width, this.height,
+                    new Paint().setColor(ColorUtil.fromARGB(0, 0, 0, (int)(60 * openProgress))));
 
-            int panelAlpha = (int)(180 * openProgress);
-            Paint panelPaint = new Paint().setColor(ColorUtil.fromARGB(20, 20, 22, panelAlpha));
-            drawContext.drawRoundedRect(RoundedRectangle.ofXYWHR(panelX, panelY, PANEL_W, PANEL_H, RADIUS), panelPaint);
+            // panel
+            drawContext.drawRoundedRect(
+                    RoundedRectangle.ofXYWHR(panelX, panelY, PANEL_W, PANEL_H, RADIUS),
+                    new Paint().setColor(ColorUtil.fromARGB(22, 22, 24, (int)(200 * openProgress))));
 
-            float contentY = panelY + PADDING;
+            float contentY = panelY + PAD;
             renderSearchBar(drawContext, panelX, contentY, mouseX, mouseY);
-            contentY += SEARCH_H + 4;
+            contentY += SEARCH_H + 10;
 
-            float listH = PANEL_H - SEARCH_H - BOTTOM_H - PADDING * 3 - 4;
-            renderSongList(drawContext, panelX + PADDING, contentY, PANEL_W - PADDING * 2, listH, mouseX, mouseY);
+            float listH = PANEL_H - SEARCH_H - BOTTOM_H - PAD * 3 - 10;
+            renderSongList(drawContext, panelX + PAD, contentY, PANEL_W - PAD * 2, listH, mouseX, mouseY);
 
-            float bottomY = panelY + PANEL_H - BOTTOM_H - PADDING;
-            renderBottomBar(drawContext, panelX + PADDING, bottomY, PANEL_W - PADDING * 2, mouseX, mouseY);
+            float bottomY = panelY + PANEL_H - BOTTOM_H - PAD;
+            drawContext.drawRectXYWH(panelX + PAD, bottomY - 1, PANEL_W - PAD * 2, 1,
+                    new Paint().setColor(DIVIDER));
+
+            renderBottomBar(drawContext, panelX + PAD, bottomY, PANEL_W - PAD * 2, mouseX, mouseY);
 
             if (isLoading) {
-                FontRenderer loadFont = FontPresets.axiformaBold(12);
                 String loading = "Loading...";
-                float lw = GlHelper.getStringWidth(loading, loadFont);
-                GlHelper.drawText(loading, panelX + (PANEL_W - lw) / 2f, panelY + PANEL_H / 2f, loadFont, TEXT_SECONDARY);
-            }
-
-            if (!statusText.isEmpty()) {
-                GlHelper.drawText(statusText, panelX + PADDING, panelY + PANEL_H - PADDING - 4, smallFont, TEXT_DIM);
+                float lw = GlHelper.getStringWidth(loading, subFont);
+                GlHelper.drawText(loading, panelX + (PANEL_W - lw) / 2f, panelY + PANEL_H / 2f, subFont, TEXT_SECONDARY);
             }
 
             drawContext.restore();
         });
-
-        searchBox.render(guiGraphics, mouseX, mouseY, partialTick);
     }
 
     private void renderSearchBar(DrawContext ctx, float x, float y, int mouseX, int mouseY) {
-        float barW = PANEL_W - PADDING * 2 - 56;
-        Paint bgPaint = new Paint().setColor(ColorUtil.fromARGB(0, 0, 0, 80));
-        ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(x + PADDING, y, barW, SEARCH_H, 6), bgPaint);
+        float inputW = PANEL_W - PAD * 2 - 42;
+        float inputX = x + PAD;
 
-        float btnX = x + PADDING + barW + 6;
-        boolean btnHover = isHovered(btnX, y, 46, SEARCH_H, mouseX, mouseY);
-        Paint btnPaint = new Paint().setColor(btnHover ? ColorUtil.fromARGB(200, 200, 205, 255) : ACCENT);
-        ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(btnX, y, 46, SEARCH_H, 6), btnPaint);
-        String searchLabel = "Go";
-        float labelW = GlHelper.getStringWidth(searchLabel, smallFont);
-        GlHelper.drawText(searchLabel, btnX + (46 - labelW) / 2f, y + (SEARCH_H - 8) / 2f, smallFont, TEXT_BLACK);
+        // input background
+        ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(inputX, y, inputW, SEARCH_H, 8), new Paint().setColor(INPUT_BG));
+
+        // clip text inside input
+        ctx.save();
+        ctx.clipRect(Rectangle.ofXYWH(inputX + 10, y + 2, inputW - 20, SEARCH_H - 4), true);
+
+        float textY = y + (SEARCH_H - 10) / 2f;
+
+        if (searchInput.isEmpty()) {
+            // placeholder
+            GlHelper.drawText("Search songs...", inputX + 10, textY, inputFont, TEXT_DIM);
+        } else {
+            // input text
+            GlHelper.drawText(searchInput, inputX + 10, textY, inputFont, TEXT_PRIMARY);
+
+            // cursor
+            String beforeCursor = searchInput.substring(0, cursorPos);
+            float cursorX = inputX + 10 + GlHelper.getStringWidth(beforeCursor, inputFont);
+            boolean cursorVisible = (System.currentTimeMillis() / 500) % 2 == 0;
+            if (cursorVisible) {
+                ctx.drawRectXYWH(cursorX, y + 6, 1, SEARCH_H - 12, new Paint().setColor(CURSOR_COLOR));
+            }
+        }
+
+        ctx.restore();
+
+        // → button
+        float btnX = inputX + inputW + 6;
+        boolean btnHover = isHovered(btnX, y, 30, SEARCH_H, mouseX, mouseY);
+        GlHelper.drawText("→", btnX + 6, y + (SEARCH_H - 10) / 2f, titleFont,
+                btnHover ? WHITE : TEXT_SECONDARY);
     }
 
     private void renderSongList(DrawContext ctx, float x, float y, float w, float h, int mouseX, int mouseY) {
         ctx.save();
         ctx.clipRect(Rectangle.ofXYWH(x, y, w, h), true);
-
-        Paint listBg = new Paint().setColor(ColorUtil.fromARGB(0, 0, 0, 40));
-        ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(x, y, w, h, 6), listBg);
 
         AudioPlayer player = MusicPlayer.AUDIO_PLAYER;
         SongInfo playing = player.getCurrentSong();
@@ -163,31 +182,31 @@ public class MusicPlayerScreen extends Screen {
             boolean isHover = isHovered(x, rowY, w, ROW_H, mouseX, mouseY);
             boolean isPlaying = playing != null && playing.id == song.id;
 
-            int bgColor;
-            if (isPlaying) bgColor = ROW_PLAYING;
-            else if (isHover) bgColor = ROW_HOVER;
-            else bgColor = ROW_BG;
-            ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(x + 2, rowY + 1, w - 4, ROW_H - 2, 4), new Paint().setColor(bgColor));
-
             if (isPlaying) {
-                Paint accentBar = new Paint().setColor(ACCENT);
-                ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(x + 2, rowY + 1, 2, ROW_H - 2, 1), accentBar);
+                ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(x, rowY, w, ROW_H, 6), new Paint().setColor(ROW_PLAYING));
+            } else if (isHover) {
+                ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(x, rowY, w, ROW_H, 6), new Paint().setColor(ROW_HOVER));
             }
 
-            float textX = x + 10;
-            float titleY = rowY + 5;
-            GlHelper.drawText(song.name, textX, titleY, titleFont, TEXT_PRIMARY);
-            GlHelper.drawText(song.artist, textX, titleY + 13, subFont, TEXT_SECONDARY);
+            if (i > 0) {
+                ctx.drawRectXYWH(x + 12, rowY, w - 24, 1, new Paint().setColor(DIVIDER));
+            }
+
+            float textX = x + 14;
+            float titleY = rowY + 7;
+
+            GlHelper.drawText(song.name, textX, titleY, titleFont, isPlaying ? WHITE : TEXT_PRIMARY);
+            GlHelper.drawText(song.artist, textX, titleY + 15, subFont, TEXT_SECONDARY);
 
             String dur = song.formatDuration();
             float durW = GlHelper.getStringWidth(dur, smallFont);
-            GlHelper.drawText(dur, x + w - durW - 8, rowY + (ROW_H - 8) / 2f, smallFont, TEXT_DIM);
+            GlHelper.drawText(dur, x + w - durW - 12, rowY + (ROW_H - 8) / 2f, smallFont, TEXT_DIM);
 
             rowY += ROW_H;
         }
 
         if (searchResults.isEmpty() && !isLoading) {
-            String hint = "Search for songs above";
+            String hint = "Search for songs";
             float hw = GlHelper.getStringWidth(hint, subFont);
             GlHelper.drawText(hint, x + (w - hw) / 2f, y + h / 2f - 4, subFont, TEXT_DIM);
         }
@@ -199,61 +218,58 @@ public class MusicPlayerScreen extends Screen {
         AudioPlayer player = MusicPlayer.AUDIO_PLAYER;
         SongInfo song = player.getCurrentSong();
 
-        Paint barBg = new Paint().setColor(ColorUtil.fromARGB(0, 0, 0, 60));
-        ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(x, y, w, BOTTOM_H, 6), barBg);
+        float ctrlSize = 28;
+        float ctrlGap = 6;
+        float totalCtrlW = ctrlSize * 3 + ctrlGap * 2;
+        float ctrlStartX = x + (w - totalCtrlW) / 2f;
+        float ctrlY = y + 2;
 
-        float ctrlX = x + 8;
-        float ctrlY = y + 4;
-
-        // prev button
-        boolean prevHover = isHovered(ctrlX, ctrlY, 20, 20, mouseX, mouseY);
-        String prevLabel = "<<";
+        boolean prevHover = isHovered(ctrlStartX, ctrlY, ctrlSize, ctrlSize, mouseX, mouseY);
+        String prevLabel = "|<";
         float prevW = GlHelper.getStringWidth(prevLabel, smallFont);
-        GlHelper.drawText(prevLabel, ctrlX + (20 - prevW) / 2f, ctrlY + 6, smallFont, prevHover ? TEXT_PRIMARY : TEXT_SECONDARY);
-        ctrlX += 24;
+        GlHelper.drawText(prevLabel, ctrlStartX + (ctrlSize - prevW) / 2f, ctrlY + 9, smallFont, prevHover ? WHITE : TEXT_SECONDARY);
 
-        // play/pause button
-        boolean playHover = isHovered(ctrlX, ctrlY, 20, 20, mouseX, mouseY);
+        float playX = ctrlStartX + ctrlSize + ctrlGap;
+        boolean playHover = isHovered(playX, ctrlY, ctrlSize, ctrlSize, mouseX, mouseY);
         String playLabel = player.getState() == AudioPlayer.State.PLAYING ? "||" : ">";
         float playW = GlHelper.getStringWidth(playLabel, smallFont);
-        GlHelper.drawText(playLabel, ctrlX + (20 - playW) / 2f, ctrlY + 6, smallFont, playHover ? TEXT_PRIMARY : TEXT_SECONDARY);
-        ctrlX += 24;
+        GlHelper.drawText(playLabel, playX + (ctrlSize - playW) / 2f, ctrlY + 9, smallFont, playHover ? WHITE : ACCENT);
 
-        // next button
-        boolean nextHover = isHovered(ctrlX, ctrlY, 20, 20, mouseX, mouseY);
-        String nextLabel = ">>";
+        float nextX = playX + ctrlSize + ctrlGap;
+        boolean nextHover = isHovered(nextX, ctrlY, ctrlSize, ctrlSize, mouseX, mouseY);
+        String nextLabel = ">|";
         float nextW = GlHelper.getStringWidth(nextLabel, smallFont);
-        GlHelper.drawText(nextLabel, ctrlX + (20 - nextW) / 2f, ctrlY + 6, smallFont, nextHover ? TEXT_PRIMARY : TEXT_SECONDARY);
-        ctrlX += 28;
+        GlHelper.drawText(nextLabel, nextX + (ctrlSize - nextW) / 2f, ctrlY + 9, smallFont, nextHover ? WHITE : TEXT_SECONDARY);
 
-        // song info
-        float infoX = ctrlX;
         if (song != null) {
-            GlHelper.drawText(song.name, infoX, y + 6, smallFont, TEXT_PRIMARY);
-            GlHelper.drawText(song.artist, infoX, y + 17, smallFont, TEXT_SECONDARY);
-        } else {
-            GlHelper.drawText("No song playing", infoX, y + 10, smallFont, TEXT_DIM);
+            String info = song.name + "  -  " + song.artist;
+            float infoW = GlHelper.getStringWidth(info, smallFont);
+            float infoX = x + (w - Math.min(infoW, w - 20)) / 2f;
+            ctx.save();
+            ctx.clipRect(Rectangle.ofXYWH(x, ctrlY + ctrlSize, w, 14), true);
+            GlHelper.drawText(info, infoX, ctrlY + ctrlSize + 1, smallFont, TEXT_DIM);
+            ctx.restore();
         }
 
-        // progress bar
-        float progY = y + BOTTOM_H - 10;
-        float progW = w - 16;
-        float progH = 3;
+        float progY = y + BOTTOM_H - 14;
+        float progW = w;
+        float progH = 2;
         float progress = player.getProgress();
-        ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(x + 8, progY, progW, progH, 1.5f),
-                new Paint().setColor(ColorUtil.fromARGB(255, 255, 255, 30)));
+
+        ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(x, progY, progW, progH, 1),
+                new Paint().setColor(ColorUtil.fromARGB(255, 255, 255, 15)));
 
         if (progress > 0.001f) {
-            ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(x + 8, progY, progW * progress, progH, 1.5f),
-                    new Paint().setColor(ACCENT));
+            ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(x, progY, progW * progress, progH, 1),
+                    new Paint().setColor(ColorUtil.fromARGB(255, 255, 255, 120)));
         }
 
         if (song != null) {
             String elapsed = formatMs(player.getCurrentPositionMs());
             String total = song.formatDuration();
-            GlHelper.drawText(elapsed, x + 8, progY + 6, smallFont, TEXT_DIM);
-            float totalW = GlHelper.getStringWidth(total, smallFont);
-            GlHelper.drawText(total, x + w - totalW - 8, progY + 6, smallFont, TEXT_DIM);
+            GlHelper.drawText(elapsed, x, progY + 5, timeFont, TEXT_DIM);
+            float totalW = GlHelper.getStringWidth(total, timeFont);
+            GlHelper.drawText(total, x + w - totalW, progY + 5, timeFont, TEXT_DIM);
         }
     }
 
@@ -264,25 +280,31 @@ public class MusicPlayerScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (searchBox.mouseClicked(mouseX, mouseY, button)) return true;
-
         float panelX = (this.width - PANEL_W) / 2f;
         float panelY = (this.height - PANEL_H) / 2f;
 
+        // search input click — move cursor
+        float inputX = panelX + PAD;
+        float inputW = PANEL_W - PAD * 2 - 42;
+        float inputY = panelY + PAD;
+        if (isHovered(inputX, inputY, inputW, SEARCH_H, mouseX, mouseY)) {
+            float relativeX = (float) mouseX - inputX - 10;
+            cursorPos = findCursorPos(searchInput, relativeX);
+            return true;
+        }
+
         // search button click
-        float barW = PANEL_W - PADDING * 2 - 56;
-        float btnX = panelX + PADDING + barW + 6;
-        float btnY = panelY + PADDING;
-        if (isHovered(btnX, btnY, 46, SEARCH_H, mouseX, mouseY)) {
-            performSearch(searchBox.getValue());
+        float btnX = inputX + inputW + 6;
+        if (isHovered(btnX, inputY, 30, SEARCH_H, mouseX, mouseY)) {
+            performSearch(searchInput);
             return true;
         }
 
         // song list click
-        float listY = panelY + PADDING + SEARCH_H + 4;
-        float listH = PANEL_H - SEARCH_H - BOTTOM_H - PADDING * 3 - 4;
-        float listX = panelX + PADDING;
-        float listW = PANEL_W - PADDING * 2;
+        float listY = panelY + PAD + SEARCH_H + 10;
+        float listH = PANEL_H - SEARCH_H - BOTTOM_H - PAD * 3 - 10;
+        float listX = panelX + PAD;
+        float listW = PANEL_W - PAD * 2;
         if (isHovered(listX, listY, listW, listH, mouseX, mouseY)) {
             float rowY = listY - scrollOffset;
             for (int i = 0; i < searchResults.size(); i++) {
@@ -295,35 +317,34 @@ public class MusicPlayerScreen extends Screen {
         }
 
         // bottom bar controls
-        float bottomY = panelY + PANEL_H - BOTTOM_H - PADDING;
-        float ctrlX = panelX + PADDING + 8;
-        float ctrlY = bottomY + 4;
+        float bottomY = panelY + PANEL_H - BOTTOM_H - PAD;
+        float ctrlSize = 28;
+        float ctrlGap = 6;
+        float totalCtrlW = ctrlSize * 3 + ctrlGap * 2;
+        float ctrlStartX = panelX + PAD + (PANEL_W - PAD * 2 - totalCtrlW) / 2f;
+        float ctrlY = bottomY + 2;
 
-        // prev
-        if (isHovered(ctrlX, ctrlY, 20, 20, mouseX, mouseY)) {
+        if (isHovered(ctrlStartX, ctrlY, ctrlSize, ctrlSize, mouseX, mouseY)) {
             prevSong();
             return true;
         }
-        ctrlX += 24;
-        // play/pause
-        if (isHovered(ctrlX, ctrlY, 20, 20, mouseX, mouseY)) {
+        float playX = ctrlStartX + ctrlSize + ctrlGap;
+        if (isHovered(playX, ctrlY, ctrlSize, ctrlSize, mouseX, mouseY)) {
             MusicPlayer.AUDIO_PLAYER.togglePause();
             return true;
         }
-        ctrlX += 24;
-        // next
-        if (isHovered(ctrlX, ctrlY, 20, 20, mouseX, mouseY)) {
+        float nextX = playX + ctrlSize + ctrlGap;
+        if (isHovered(nextX, ctrlY, ctrlSize, ctrlSize, mouseX, mouseY)) {
             nextSong();
             return true;
         }
-
 
         return super.mouseClicked(mouseX, mouseY, button);
     }
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-        float listH = PANEL_H - SEARCH_H - BOTTOM_H - PADDING * 3 - 4;
+        float listH = PANEL_H - SEARCH_H - BOTTOM_H - PAD * 3 - 10;
         float maxScroll = Math.max(0, searchResults.size() * ROW_H - listH);
         scrollTarget = (float)Math.max(0, Math.min(maxScroll, scrollTarget - delta * 3));
         return true;
@@ -331,26 +352,80 @@ public class MusicPlayerScreen extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (keyCode == 256) { // ESC
+        if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
             this.onClose();
             return true;
         }
-        if (keyCode == 257) { // Enter
-            performSearch(searchBox.getValue());
+        if (keyCode == GLFW.GLFW_KEY_ENTER) {
+            performSearch(searchInput);
             return true;
         }
-        if (searchBox.isFocused()) {
-            return searchBox.keyPressed(keyCode, scanCode, modifiers);
+        if (keyCode == GLFW.GLFW_KEY_BACKSPACE) {
+            if (cursorPos > 0 && !searchInput.isEmpty()) {
+                searchInput = searchInput.substring(0, cursorPos - 1) + searchInput.substring(cursorPos);
+                cursorPos--;
+            }
+            return true;
+        }
+        if (keyCode == GLFW.GLFW_KEY_DELETE) {
+            if (cursorPos < searchInput.length()) {
+                searchInput = searchInput.substring(0, cursorPos) + searchInput.substring(cursorPos + 1);
+            }
+            return true;
+        }
+        if (keyCode == GLFW.GLFW_KEY_LEFT) {
+            cursorPos = Math.max(0, cursorPos - 1);
+            return true;
+        }
+        if (keyCode == GLFW.GLFW_KEY_RIGHT) {
+            cursorPos = Math.min(searchInput.length(), cursorPos + 1);
+            return true;
+        }
+        if (keyCode == GLFW.GLFW_KEY_HOME) {
+            cursorPos = 0;
+            return true;
+        }
+        if (keyCode == GLFW.GLFW_KEY_END) {
+            cursorPos = searchInput.length();
+            return true;
+        }
+        // Ctrl+A select all (just move cursor to end)
+        if (keyCode == GLFW.GLFW_KEY_A && (modifiers & GLFW.GLFW_MOD_CONTROL) != 0) {
+            cursorPos = searchInput.length();
+            return true;
+        }
+        // Ctrl+V paste
+        if (keyCode == GLFW.GLFW_KEY_V && (modifiers & GLFW.GLFW_MOD_CONTROL) != 0) {
+            String clipboard = Minecraft.getInstance().keyboardHandler.getClipboard();
+            if (clipboard != null && !clipboard.isEmpty()) {
+                searchInput = searchInput.substring(0, cursorPos) + clipboard + searchInput.substring(cursorPos);
+                cursorPos += clipboard.length();
+            }
+            return true;
         }
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
     @Override
     public boolean charTyped(char codePoint, int modifiers) {
-        if (searchBox.isFocused()) {
-            return searchBox.charTyped(codePoint, modifiers);
+        if (codePoint >= 32 && searchInput.length() < 100) {
+            searchInput = searchInput.substring(0, cursorPos) + codePoint + searchInput.substring(cursorPos);
+            cursorPos++;
+            return true;
         }
         return super.charTyped(codePoint, modifiers);
+    }
+
+    private int findCursorPos(String text, float relativeX) {
+        if (relativeX <= 0 || text.isEmpty()) return 0;
+        for (int i = 1; i <= text.length(); i++) {
+            float w = GlHelper.getStringWidth(text.substring(0, i), inputFont);
+            if (w >= relativeX) {
+                float prevW = GlHelper.getStringWidth(text.substring(0, i - 1), inputFont);
+                return (relativeX - prevW < w - relativeX) ? i - 1 : i;
+            }
+        }
+        return text.length();
     }
 
     @Override
@@ -391,6 +466,16 @@ public class MusicPlayerScreen extends Screen {
         }).exceptionally(e -> {
             statusText = "Failed to get song URL";
             return null;
+        });
+
+        // preload lyrics
+        NeteaseApi.getLyrics(song.id).thenAccept(lyrics -> {
+            try {
+                LyricsModule lyricsMod = NiloreClient.getInstance().getModuleManager().getModule(LyricsModule.class);
+                if (lyricsMod != null) {
+                    lyricsMod.setLyrics(song.id, lyrics);
+                }
+            } catch (Exception ignored) {}
         });
     }
 
