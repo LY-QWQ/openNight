@@ -17,7 +17,7 @@ add_custom_command(
 )
 add_custom_target(stage_dll_for_loader DEPENDS "${EMBED_DIR}/OpenZen.dll")
 
-qt_add_executable(OpenZenLoader WIN32
+qt_add_executable(OpenNiloreLoader WIN32
     src/main.cpp
     src/MainWindow.cpp
     src/MainWindow.h
@@ -39,9 +39,9 @@ qt_add_executable(OpenZenLoader WIN32
     res/loader.rc
 )
 
-add_dependencies(OpenZenLoader stage_dll_for_loader)
+add_dependencies(OpenNiloreLoader stage_dll_for_loader)
 
-target_include_directories(OpenZenLoader PRIVATE
+target_include_directories(OpenNiloreLoader PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/res
 )
@@ -52,7 +52,7 @@ set_source_files_properties(res/loader.rc PROPERTIES
     COMPILE_FLAGS "/I\"${EMBED_DIR}\""
 )
 
-target_link_libraries(OpenZenLoader PRIVATE
+target_link_libraries(OpenNiloreLoader PRIVATE
     Qt6::Widgets
     psapi
     shlwapi
@@ -64,19 +64,19 @@ target_link_libraries(OpenZenLoader PRIVATE
 # CI). Stamped into the window title so a built loader can be
 # traced back to its source commit.
 if(DEFINED OPENZEN_BUILD_REVISION AND NOT OPENZEN_BUILD_REVISION STREQUAL "")
-    target_compile_definitions(OpenZenLoader PRIVATE
+    target_compile_definitions(OpenNiloreLoader PRIVATE
         OPENZEN_BUILD_REVISION="${OPENZEN_BUILD_REVISION}")
 endif()
 
-set_target_properties(OpenZenLoader PROPERTIES
-    OUTPUT_NAME "OpenZenLoader"
+set_target_properties(OpenNiloreLoader PROPERTIES
+    OUTPUT_NAME "OpenNiloreLoader"
 )
 
 if(MSVC)
     # requireAdministrator: lets the loader OpenProcess / VirtualAllocEx /
     # CreateRemoteThread against javaw.exe even when the launcher was
     # itself started elevated. UAC consent prompts once on launch.
-    set_target_properties(OpenZenLoader PROPERTIES
+    set_target_properties(OpenNiloreLoader PROPERTIES
         LINK_FLAGS "/SUBSYSTEM:WINDOWS /MANIFESTUAC:\"level='requireAdministrator' uiAccess='false'\""
     )
 endif()

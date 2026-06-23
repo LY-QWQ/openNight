@@ -469,7 +469,7 @@ tasks.withType(JavaCompile).configureEach {
 //
 // Produces:
 //   build/dist/OpenZen.dll        - injectable DLL with embedded zen.jar
-//   build/dist/OpenZenLoader.exe  - GUI injector
+//   build/dist/OpenNiloreLoader.exe  - GUI injector
 //
 // Requires:
 //   - JAVA_HOME pointing at a JDK 17 install (for jni.h / jvmti.h)
@@ -632,7 +632,7 @@ tasks.register('configureNative', Exec) {
 
 tasks.register('buildNative', Exec) {
     group = 'openzen'
-    description = 'Compile OpenZen.dll and OpenZenLoader.exe with CMake.'
+    description = 'Compile OpenZen.dll and OpenNiloreLoader.exe with CMake.'
     dependsOn 'configureNative'
     workingDir nativeDir
     commandLine 'cmake', '--build', 'build', '--config', 'Release'
@@ -662,10 +662,10 @@ tasks.register('packageDist') {
     // about to produce does not exist yet. doLast runs after buildNative,
     // by which point the file is definitely on disk.
     doLast {
-        def src = file("$nativeBuildDir/loader/Release/OpenZenLoader.exe")
+        def src = file("$nativeBuildDir/loader/Release/OpenNiloreLoader.exe")
         if (!src.isFile()) {
             throw new GradleException(
-                "Expected OpenZenLoader.exe at ${src} after buildNative; missing")
+                "Expected OpenNiloreLoader.exe at ${src} after buildNative; missing")
         }
         copy {
             from src
@@ -691,12 +691,12 @@ ext.findUpx = {
 
 tasks.register('upxCompress') {
     group = 'openzen'
-    description = 'Run UPX --best --lzma on the packaged OpenZenLoader.exe. ' +
+    description = 'Run UPX --best --lzma on the packaged OpenNiloreLoader.exe. ' +
                   'No-op (warning only) when upx is not on PATH so local builds ' +
                   'do not need it installed.'
     dependsOn 'packageDist'
     doLast {
-        def exe = file("$buildDir/dist/OpenZenLoader.exe")
+        def exe = file("$buildDir/dist/OpenNiloreLoader.exe")
         if (!exe.isFile()) {
             throw new GradleException("packageDist did not produce ${exe}")
         }

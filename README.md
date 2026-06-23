@@ -119,7 +119,7 @@ OpenZen 支持两种交付形式：**Java Agent jar**（挂到 Minecraft JVM 启
 - **JDK 17**（推荐 Microsoft Build of OpenJDK / Temurin / Azul Zulu 任一）。
 - 必须设置 `JAVA_HOME` 环境变量指向该 JDK 安装目录（PowerShell 验证：`echo $env:JAVA_HOME`）。
 - 仓库根目录用 `gradlew.bat` 即可，**不需要**单独安装 Gradle。
-- **可选：UPX** —— 仅热注入器路径会用到，作用是把最终的 `OpenZenLoader.exe` 从 ~32 MB 压到 ~10 MB。在 `PATH` 上检测到 `upx` 时 `./gradlew upxCompress` 会自动跑 `--best --lzma`；找不到就只打一条 warning 直接跳过，不影响功能。安装方式：
+- **可选：UPX** —— 仅热注入器路径会用到，作用是把最终的 `OpenNiloreLoader.exe` 从 ~32 MB 压到 ~10 MB。在 `PATH` 上检测到 `upx` 时 `./gradlew upxCompress` 会自动跑 `--best --lzma`；找不到就只打一条 warning 直接跳过，不影响功能。安装方式：
 
     ```powershell
     choco install upx -y
@@ -147,7 +147,7 @@ OpenZen 支持两种交付形式：**Java Agent jar**（挂到 Minecraft JVM 启
 
 ### 2. 构建为热注入器 (单文件 EXE)
 
-产出一个独立的 `OpenZenLoader.exe`，DLL 已经作为资源段嵌入 EXE 内部。用户分发只需要这一个文件，运行后 GUI 列出当前所有 `javaw.exe` 进程（含 Minecraft 窗口标题），选中后点 Inject 即可。
+产出一个独立的 `OpenNiloreLoader.exe`，DLL 已经作为资源段嵌入 EXE 内部。用户分发只需要这一个文件，运行后 GUI 列出当前所有 `javaw.exe` 进程（含 Minecraft 窗口标题），选中后点 Inject 即可。
 
 #### 额外前置 — 必须项
 
@@ -167,7 +167,7 @@ OpenZen 支持两种交付形式：**Java Agent jar**（挂到 Minecraft JVM 启
     ```
 
     Gradle 检测顺序：环境变量 `VCPKG_ROOT` → `C:\vcpkg` → `D:\vcpkg` → `%USERPROFILE%\vcpkg`。
-    **首次** `./gradlew dll` 时 vcpkg 会按 `native/vcpkg.json` 编译静态 Qt6（30 分钟到 2 小时，看 CPU），之后增量 build 几分钟。Qt 完全静态链接进 EXE，所以分发依然单文件——`OpenZenLoader.exe` 自带 Qt6 + OpenZen.dll，零运行时依赖。
+    **首次** `./gradlew dll` 时 vcpkg 会按 `native/vcpkg.json` 编译静态 Qt6（30 分钟到 2 小时，看 CPU），之后增量 build 几分钟。Qt 完全静态链接进 EXE，所以分发依然单文件——`OpenNiloreLoader.exe` 自带 Qt6 + OpenZen.dll，零运行时依赖。
 
 #### 构建命令
 
@@ -175,12 +175,12 @@ OpenZen 支持两种交付形式：**Java Agent jar**（挂到 Minecraft JVM 启
 .\gradlew.bat dll
 ```
 
-产物：`build/dist/OpenZenLoader.exe`。如果已装 UPX 想顺便压缩，跑 `.\gradlew.bat upxCompress`。
+产物：`build/dist/OpenNiloreLoader.exe`。如果已装 UPX 想顺便压缩，跑 `.\gradlew.bat upxCompress`。
 
 #### 使用注入器
 
 1. 用 HMCL / Forge 启动器正常启动 Minecraft 1.20.1 Forge（**不需要**任何特殊 JVM 参数）。
-2. 双击 `OpenZenLoader.exe`。
+2. 双击 `OpenNiloreLoader.exe`。
 3. GUI 自动列出系统里**所有 Minecraft 实例**，每秒自动刷新一次。
 4. 点击行最后的 Inject 按钮。
 

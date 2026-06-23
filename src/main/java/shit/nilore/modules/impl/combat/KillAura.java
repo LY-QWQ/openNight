@@ -5,11 +5,13 @@ import java.awt.Color;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import net.minecraft.client.Camera;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraftforge.client.ForgeHooksClient;
 import net.minecraft.world.entity.Entity;
@@ -38,6 +40,7 @@ import shit.nilore.event.impl.WorldChangeEvent;
 import shit.nilore.modules.Category;
 import shit.nilore.modules.Module;
 import shit.nilore.modules.impl.combat.antikb.NoXZMode;
+import shit.nilore.modules.impl.movement.Scaffold;
 import shit.nilore.modules.impl.player.AntiTNT;
 import shit.nilore.modules.impl.player.AntiWeb;
 import shit.nilore.modules.impl.player.AutoWebPlace;
@@ -90,6 +93,10 @@ public class KillAura extends Module {
     public final ModeSetting priorityMode = new ModeSetting("Priority", "Distance", "FoV", "Health", "None").withDefault("FoV");
     public final ModeSetting targetEsp    = new ModeSetting("Target ESP", "None", "Spiral", "Box", "Tab").withDefault("None");
 
+    public final NumberSetting rotationSpeed = new NumberSetting("Rotation Speed", 180, 0, 720, 5);
+    public final NumberSetting rotationDrift = new NumberSetting("Drift", 0.1, 0, 5, 0.1);
+    public final NumberSetting rotationJitter = new NumberSetting("Jitter", 0.02, 0, 1, 0.01);
+
     private RotationUtil.BestHitInfo currentBestHit;
     private RotationUtil.BestHitInfo prevBestHit;
     private int attackTimes;
@@ -99,6 +106,11 @@ public class KillAura extends Module {
     private int sprintCounter;
     public Rotation rotation;
 
+    private Random organicRandom;
+    private double organicTimeAccumulator;
+    private double orgFreqYaw1, orgFreqYaw2, orgFreqPitch1, orgFreqPitch2;
+    private double orgPhaseYaw1, orgPhaseYaw2, orgPhasePitch1, orgPhasePitch2;
+
     public KillAura() {
         super("KillAura", Category.COMBAT);
         INSTANCE = this;
@@ -107,6 +119,7 @@ public class KillAura extends Module {
     @Override
     public void onEnable() {
         this.rotation = null;
+        this.reinitOrganicModel();
         this.targetIndex = 0;
         this.attacks = 0.0f;
         target = null;
@@ -123,7 +136,87 @@ public class KillAura extends Module {
         this.sprintTickCounter = 0;
         this.sprintCounter = 0;
         this.attackTimes = 0;
+        this.rotation = null;
         super.onDisable();
+    }
+
+    private void reinitOrganicModel() {
+        this.organicRandom = new Random(System.nanoTime());
+        this.organicTimeAccumulator = 0.0;
+        this.orgFreqYaw1 = this.organicRandom.nextDouble() * 0.3 + 0.1;
+        this.orgFreqYaw2 = this.organicRandom.nextDouble() * 0.5 + 0.5;
+        this.orgFreqPitch1 = this.organicRandom.nextDouble() * 0.3 + 0.1;
+        this.orgFreqPitch2 = this.organicRandom.nextDouble() * 0.5 + 0.5;
+        this.orgPhaseYaw1 = this.organicRandom.nextDouble() * Math.PI * 2;
+        this.orgPhaseYaw2 = this.organicRandom.nextDouble() * Math.PI * 2;
+        this.orgPhasePitch1 = this.organicRandom.nextDouble() * Math.PI * 2;
+        this.orgPhasePitch2 = this.organicRandom.nextDouble() * Math.PI * 2;
+    }
+
+    private Rotation applyOrganicRotation(Rotation from, Rotation to, float timeDelta) {
+        float rawYawDelta = Mth.wrapDegrees(to.getYaw() - from.getYaw());
+        float rawPitchDelta = to.getPitch() - from.getPitch();
+
+        double speed = this.rotationSpeed.getValue().doubleValue();
+        double driftIntensity = this.rotationDrift.getValue().doubleValue();
+        double jitterIntensity = this.rotationJitter.getValue().doubleValue();
+
+        // speed=0: 瞬转，不加漂移抖动
+        if (speed <= 0) {
+            return to;
+        }
+
+        float deltaYaw = rawYawDelta * timeDelta;
+        float deltaPitch = rawPitchDelta * timeDelta;
+
+        double distance = Math.sqrt(deltaYaw * deltaYaw + deltaPitch * deltaPitch);
+        if (distance < driftIntensity) {
+            return new Rotation(from.getYaw() + deltaYaw, from.getPitch() + deltaPitch);
+        }
+
+        if (distance > 0) {
+            double ratioYaw = Math.abs(deltaYaw) / distance;
+            double ratioPitch = Math.abs(deltaPitch) / distance;
+            double maxYaw = speed * ratioYaw * timeDelta;
+            double maxPitch = speed * ratioPitch * timeDelta;
+            deltaYaw = Mth.clamp(deltaYaw, (float)-maxYaw, (float)maxYaw);
+            deltaPitch = Mth.clamp(deltaPitch, (float)-maxPitch, (float)maxPitch);
+        }
+
+        this.organicTimeAccumulator += timeDelta;
+
+        double sinYaw = Math.sin(this.organicTimeAccumulator * this.orgFreqYaw1 + this.orgPhaseYaw1)
+                + (this.organicRandom.nextDouble() * 0.1 + 0.45) * Math.sin(this.organicTimeAccumulator * this.orgFreqYaw2 + this.orgPhaseYaw2);
+        double sinPitch = Math.sin(this.organicTimeAccumulator * this.orgFreqPitch1 + this.orgPhasePitch1)
+                + (this.organicRandom.nextDouble() * 0.1 + 0.45) * Math.sin(this.organicTimeAccumulator * this.orgFreqPitch2 + this.orgPhasePitch2);
+        double driftYaw = sinYaw * driftIntensity * timeDelta;
+        double driftPitch = sinPitch * driftIntensity * timeDelta;
+
+        double jitterYaw = (this.organicRandom.nextDouble() * 2 - 1) * jitterIntensity * timeDelta;
+        double jitterPitch = (this.organicRandom.nextDouble() * 2 - 1) * jitterIntensity * timeDelta;
+
+        float moveYaw = deltaYaw + (float)driftYaw + (float)jitterYaw;
+        float movePitch = deltaPitch + (float)driftPitch + (float)jitterPitch;
+
+        float finalYaw = from.getYaw() + moveYaw;
+        float finalPitch = Mth.clamp(from.getPitch() + movePitch, -90.0f, 90.0f);
+        return patchConstantRotation(new Rotation(finalYaw, finalPitch), from);
+    }
+
+    /**
+     * GCD 对齐：将旋转增量取整到灵敏度步长的整数倍，
+     * 防止对静止目标产生微抖。等价于 Candy 的 RotationUtility.patchConstantRotation。
+     */
+    private static Rotation patchConstantRotation(Rotation rotation, Rotation prevRotation) {
+        double sensitivity = mc.options.sensitivity().get().floatValue() * 0.6 + 0.2;
+        double multiplier = (sensitivity * sensitivity * sensitivity) * 8.0;
+        double divisor = multiplier * 0.15;
+
+        float yawDelta = rotation.getYaw() - prevRotation.getYaw();
+        float pitchDelta = rotation.getPitch() - prevRotation.getPitch();
+        float yaw = prevRotation.getYaw() + (float)(Math.round(yawDelta / divisor) * divisor);
+        float pitch = prevRotation.getPitch() + (float)(Math.round(pitchDelta / divisor) * divisor);
+        return new Rotation(yaw, pitch);
     }
 
     @EventTarget
@@ -212,6 +305,7 @@ public class KillAura extends Module {
         }
         if (mc.screen instanceof AbstractContainerScreen
                 || ItemUtil.hasServerItem()
+                || (Scaffold.INSTANCE != null && Scaffold.INSTANCE.isEnabled())
                 || (Stuck.INSTANCE != null && Stuck.INSTANCE.isEnabled())
                 || (Helper.INSTANCE != null && Helper.INSTANCE.isEnabled() && Helper.targetRotation != null)
                 || AntiWeb.targetRotation != null
@@ -238,7 +332,22 @@ public class KillAura extends Module {
         this.currentBestHit = null;
         if (aimingTarget != null) {
             this.currentBestHit = RotationUtil.getBestHit(aimingTarget);
-            this.rotation = this.currentBestHit != null ? this.currentBestHit.rotation() : null;
+            Rotation rawTarget = this.currentBestHit != null ? this.currentBestHit.rotation() : null;
+            if (rawTarget != null) {
+                Rotation from = RotationHandler.prevRotation != null
+                        ? RotationHandler.prevRotation
+                        : new Rotation(mc.player.getYRot(), mc.player.getXRot());
+                Rotation organic = this.applyOrganicRotation(from, rawTarget, 1.0f);
+                this.rotation = (organic != null
+                        && !Float.isNaN(organic.getYaw())
+                        && !Float.isNaN(organic.getPitch())
+                        && !Float.isInfinite(organic.getYaw())
+                        && !Float.isInfinite(organic.getPitch()))
+                        ? organic
+                        : rawTarget;
+            } else {
+                this.rotation = null;
+            }
         } else {
             this.rotation = null;
         }
@@ -251,7 +360,7 @@ public class KillAura extends Module {
         }
         if (targetList.size() > 1
                 && (this.attackTimes >= this.switchDelay.getValue().intValue()
-                    || (this.currentBestHit != null && this.currentBestHit.distance() > 3.0))) {
+                || (this.currentBestHit != null && this.currentBestHit.distance() > 3.0))) {
             this.attackTimes = 0;
             for (int i = 0; i < targetList.size(); ++i) {
                 ++this.targetIndex;
@@ -303,7 +412,8 @@ public class KillAura extends Module {
         }
         if (mc.player.getUseItem().isEmpty()
                 && mc.screen == null
-                && (this.ignoreSkipTicks.getValue() || ClientBase.delayPackets.isEmpty())) {
+                && (this.ignoreSkipTicks.getValue() || ClientBase.delayPackets.isEmpty()
+                || (Critical.INSTANCE != null && Critical.INSTANCE.isEnabled()))) {
             while (this.attacks >= 1.0f) {
                 this.doAttack();
                 this.attacks -= 1.0f;
@@ -319,6 +429,7 @@ public class KillAura extends Module {
             return;
         }
         if (targetList.isEmpty()) return;
+        if (this.rotation == null) return;
 
         HitResult hitResult = mc.hitResult;
         if (hitResult != null && hitResult.getType() == HitResult.Type.ENTITY) {
@@ -332,14 +443,18 @@ public class KillAura extends Module {
             int attacked = 0;
             Rotation aimRot = RotationHandler.targetRotation;
             for (Entity entity : targetList) {
-                if (mc.player == null || aimRot == null) break;
-                if (RotationUtil.getHitDistance(entity, mc.player.getEyePosition(), aimRot) >= 3.0) continue;
+                if (mc.player == null) break;
+                // 无旋转状态时跳过 rotation 距离检查，直接攻击目标
+                if (aimRot != null && RotationUtil.getHitDistance(entity, mc.player.getEyePosition(), aimRot) >= 3.0) continue;
                 this.attackEntity(entity);
                 if (++attacked >= 2) break;
             }
         } else if (hitResult != null && hitResult.getType() == HitResult.Type.ENTITY) {
             Entity hitEntity = ((EntityHitResult) hitResult).getEntity();
             this.attackEntity(hitEntity);
+        } else if (target != null && targetList.contains(target)) {
+            // 没有 ray trace 命中（无瞄准目标时），直接攻击当前目标
+            this.attackEntity(target);
         }
     }
 
