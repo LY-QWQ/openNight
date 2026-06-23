@@ -19,6 +19,11 @@ extends Module {
         INSTANCE = this;
     }
 
+    @Override
+    public void onDisable() {
+        super.onDisable();
+    }
+
     @EventTarget
     public void onEntityRemove(EntityRemoveEvent entityRemoveEvent) {
         if (mc.player == null) {
