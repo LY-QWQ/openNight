@@ -8,6 +8,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -18,7 +19,10 @@ import java.util.regex.Pattern;
 
 public class NeteaseApi {
     private static final String BASE = "https://music-api.gdstudio.xyz/api.php";
-    private static final HttpClient CLIENT = HttpClient.newHttpClient();
+    private static final String UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0";
+    private static final HttpClient CLIENT = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(10))
+            .build();
     private static final Pattern LRC_PATTERN = Pattern.compile("\\[(\\d{2}):(\\d{2})\\.(\\d{2,3})](.*)");
 
     public static CompletableFuture<List<SongInfo>> search(String keywords, int limit) {
@@ -26,7 +30,7 @@ public class NeteaseApi {
         return get("types=search&source=netease&name=" + encoded + "&count=" + limit + "&pages=1")
                 .thenApply(root -> {
                     List<SongInfo> results = new ArrayList<>();
-                    if (!root.isJsonArray()) return results;
+                    if (root == null || !root.isJsonArray()) return results;
                     JsonArray arr = root.getAsJsonArray();
                     for (JsonElement el : arr) {
                         JsonObject obj = el.getAsJsonObject();
@@ -46,15 +50,18 @@ public class NeteaseApi {
                 });
     }
 
-    public static CompletableFuture<String> getSongUrl(long songId) {
+    public record SongUrlResult(String url, long size) {}
+
+    public static CompletableFuture<SongUrlResult> getSongUrl(long songId) {
         return get("types=url&source=netease&id=" + songId + "&br=320")
                 .thenApply(root -> {
-                    if (!root.isJsonObject()) return null;
+                    if (root == null || !root.isJsonObject()) return null;
                     JsonObject obj = root.getAsJsonObject();
                     String url = obj.has("url") && !obj.get("url").isJsonNull()
                             ? obj.get("url").getAsString() : null;
-                    System.out.println("[MusicPlayer] Song URL: " + url);
-                    return url;
+                    long size = obj.has("size") ? obj.get("size").getAsLong() : 0;
+                    System.out.println("[MusicPlayer] Song URL: " + url + " size=" + size);
+                    return url != null ? new SongUrlResult(url, size) : null;
                 });
     }
 
@@ -64,7 +71,7 @@ public class NeteaseApi {
         }
         return get("types=pic&source=netease&id=" + picId + "&size=300")
                 .thenApply(root -> {
-                    if (!root.isJsonObject()) return null;
+                    if (root == null || !root.isJsonObject()) return null;
                     JsonObject obj = root.getAsJsonObject();
                     return obj.has("url") ? obj.get("url").getAsString() : null;
                 });
@@ -73,7 +80,7 @@ public class NeteaseApi {
     public static CompletableFuture<List<LyricLine>> getLyrics(long songId) {
         return get("types=lyric&source=netease&id=" + songId)
                 .thenApply(root -> {
-                    if (!root.isJsonObject()) return Collections.emptyList();
+                    if (root == null || !root.isJsonObject()) return Collections.emptyList();
                     JsonObject obj = root.getAsJsonObject();
                     String raw = obj.has("lyric") ? obj.get("lyric").getAsString() : "";
                     if (raw.isEmpty()) return Collections.emptyList();
@@ -104,10 +111,19 @@ public class NeteaseApi {
         String url = BASE + "?" + params;
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
-                .header("User-Agent", "Mozilla/5.0")
+                .timeout(Duration.ofSeconds(15))
+                .header("User-Agent", UA)
                 .GET()
                 .build();
         return CLIENT.sendAsync(request, HttpResponse.BodyHandlers.ofString())
-                .thenApply(resp -> JsonParser.parseString(resp.body()));
+                .thenApply(resp -> {
+                    System.out.println("[MusicPlayer] API " + params.split("&")[0] + " status=" + resp.statusCode());
+                    return JsonParser.parseString(resp.body());
+                })
+                .exceptionally(e -> {
+                    System.err.println("[MusicPlayer] API error: " + e.getMessage());
+                    e.printStackTrace();
+                    return null;
+                });
     }
 }

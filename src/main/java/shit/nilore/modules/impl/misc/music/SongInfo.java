@@ -6,7 +6,7 @@ public class SongInfo {
     public final String artist;
     public final String albumName;
     public final String albumPicUrl;
-    public final long duration;
+    public long duration;
 
     public SongInfo(long id, String name, String artist, String albumName, String albumPicUrl, long duration) {
         this.id = id;

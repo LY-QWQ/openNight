@@ -102,10 +102,10 @@ public class AudioPlayer {
     }
 
     public long getCurrentPositionMs() {
-        SongInfo song = currentSong;
-        if (song == null || song.duration <= 0) return 0;
+        if (currentSong == null) return 0;
         long now = System.currentTimeMillis();
         State s = state.get();
+        if (s == State.STOPPED || s == State.LOADING) return 0;
         long paused = (s == State.PAUSED) ? totalPausedMs + (now - pauseStartMs) : totalPausedMs;
         return Math.max(0, now - playStartMs - paused);
     }
@@ -117,7 +117,7 @@ public class AudioPlayer {
             HttpClient client = HttpClient.newHttpClient();
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(url))
-                    .header("User-Agent", "Mozilla/5.0")
+                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0")
                     .build();
 
             HttpResponse<java.io.InputStream> resp = client.send(request,
@@ -138,6 +138,24 @@ public class AudioPlayer {
             );
 
             AudioInputStream ais = AudioSystem.getAudioInputStream(decoded, rawStream);
+
+            // compute duration from audio stream
+            if (currentSong != null) {
+                long frames = rawStream.getFrameLength();
+                if (frames > 0) {
+                    currentSong.duration = (long)(frames / baseFormat.getSampleRate() * 1000);
+                } else {
+                    // fallback: estimate from Content-Length and bitrate
+                    long contentLength = resp.headers().firstValueAsLong("Content-Length").orElse(-1);
+                    if (contentLength > 0) {
+                        int bytesPerSec = (int)(baseFormat.getSampleRate() * baseFormat.getFrameSize());
+                        if (bytesPerSec > 0) {
+                            currentSong.duration = (contentLength * 1000L) / bytesPerSec;
+                        }
+                    }
+                }
+                System.out.println("[MusicPlayer] Duration: " + currentSong.duration + "ms");
+            }
 
             DataLine.Info info = new DataLine.Info(SourceDataLine.class, decoded);
             localLine = (SourceDataLine) AudioSystem.getLine(info);

@@ -456,9 +456,13 @@ public class MusicPlayerScreen extends Screen {
         queueIndex = searchResults.indexOf(song);
         playQueue.clear();
         playQueue.addAll(searchResults);
-        NeteaseApi.getSongUrl(song.id).thenAccept(url -> {
-            if (url != null) {
-                MusicPlayer.AUDIO_PLAYER.play(song, url);
+        NeteaseApi.getSongUrl(song.id).thenAccept(result -> {
+            if (result != null) {
+                // estimate duration from file size (320kbps = 40000 bytes/sec)
+                if (song.duration <= 0 && result.size() > 0) {
+                    song.duration = (result.size() * 1000L) / 40000;
+                }
+                MusicPlayer.AUDIO_PLAYER.play(song, result.url());
                 statusText = "";
             } else {
                 statusText = "Song unavailable (VIP or region locked)";
