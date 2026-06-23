@@ -28,6 +28,7 @@ import shit.nilore.patch.ConnectionPatch;
 import shit.nilore.patch.EntityPatch;
 import shit.nilore.patch.EntityRendererPatch;
 import shit.nilore.patch.FriendlyByteBufPatch;
+import shit.nilore.patch.BlockOcclusionCachePatch;
 import shit.nilore.patch.GameRendererPatch;
 import shit.nilore.patch.HumanoidModelPatch;
 import shit.nilore.patch.ItemInHandLayerPatch;
@@ -208,6 +209,13 @@ public class NiloreClient extends ClientBase {
         PatchRegistry.register(ItemPatch.class);
         PatchRegistry.register(PlayerTabOverlayPatch.class);
         PatchRegistry.register(FriendlyByteBufPatch.class);
+
+        // Compatibility patch for Embeddium/Sodium's BlockOcclusionCache.
+        // Always registered so the transformer can catch the class when it
+        // first loads. We must NOT use Class.forName() here — that would
+        // load the class before our transformer is installed, preventing
+        // the patch from ever being applied.
+        PatchRegistry.register(BlockOcclusionCachePatch.class);
     }
 
     public static Minecraft getMcInstance() {

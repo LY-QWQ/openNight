@@ -456,23 +456,8 @@ public class MusicPlayerScreen extends Screen {
         queueIndex = searchResults.indexOf(song);
         playQueue.clear();
         playQueue.addAll(searchResults);
-        NeteaseApi.getSongUrl(song.id).thenAccept(result -> {
-            if (result != null) {
-                // estimate duration from file size (320kbps = 40000 bytes/sec)
-                if (song.duration <= 0 && result.size() > 0) {
-                    song.duration = (result.size() * 1000L) / 40000;
-                }
-                MusicPlayer.AUDIO_PLAYER.play(song, result.url());
-                statusText = "";
-            } else {
-                statusText = "Song unavailable (VIP or region locked)";
-            }
-        }).exceptionally(e -> {
-            statusText = "Failed to get song URL";
-            return null;
-        });
 
-        // preload lyrics
+        // load lyrics first, then wait for warmup before playing
         NeteaseApi.getLyrics(song.id).thenAccept(lyrics -> {
             try {
                 LyricsModule lyricsMod = NiloreClient.getInstance().getModuleManager().getModule(LyricsModule.class);
@@ -481,6 +466,38 @@ public class MusicPlayerScreen extends Screen {
                 }
             } catch (Exception ignored) {}
         });
+
+        NeteaseApi.getSongUrl(song.id).thenAccept(result -> {
+            if (result == null) {
+                statusText = "Song unavailable (VIP or region locked)";
+                return;
+            }
+            if (song.duration <= 0 && result.size() > 0) {
+                song.duration = (result.size() * 1000L) / 40000;
+            }
+            // Wait for lyrics warmup to complete before playing
+            waitForWarmupThenPlay(song, result.url());
+        }).exceptionally(e -> {
+            statusText = "Failed to get song URL";
+            return null;
+        });
+    }
+
+    private void waitForWarmupThenPlay(SongInfo song, String url) {
+        LyricsModule lyricsMod = NiloreClient.getInstance().getModuleManager().getModule(LyricsModule.class);
+        if (lyricsMod == null || lyricsMod.isWarmupComplete()) {
+            MusicPlayer.AUDIO_PLAYER.play(song, url);
+            statusText = "";
+            return;
+        }
+        statusText = "Preparing lyrics...";
+        new Thread(() -> {
+            while (!lyricsMod.isWarmupComplete()) {
+                try { Thread.sleep(50); } catch (InterruptedException e) { return; }
+            }
+            MusicPlayer.AUDIO_PLAYER.play(song, url);
+            statusText = "";
+        }, "LyricsWarmupWait").start();
     }
 
     private void nextSong() {

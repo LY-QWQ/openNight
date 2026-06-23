@@ -72,20 +72,42 @@ public final class PatchTransformer {
         if (patchAnnotation == null) {
             throw new IllegalArgumentException(patchClass.getName() + " is not @Patch");
         }
-        String patchTargetOwner = Type.getInternalName(patchAnnotation.value());
+        String patchTargetOwner;
+        if (!patchAnnotation.className().isEmpty()) {
+            patchTargetOwner = patchAnnotation.className().replace('.', '/');
+        } else {
+            patchTargetOwner = Type.getInternalName(patchAnnotation.value());
+        }
 
         Map<MethodKey, List<Method>> handlersByTarget = new HashMap<>();
+        // Collect handlers whose desc is empty (name-only wildcards) separately
+        List<Method> nameOnlyHandlers = new ArrayList<>();
         for (Method handler : patchClass.getDeclaredMethods()) {
-            collectHandler(patchClass, patchTargetOwner, handler, handlersByTarget);
+            collectHandler(patchClass, patchTargetOwner, handler, handlersByTarget, nameOnlyHandlers);
         }
         LOGGER.info("Loading patch {} -> {} ({} handler(s))",
                 patchClass.getName(), target.name,
-                handlersByTarget.values().stream().mapToInt(List::size).sum());
+                handlersByTarget.values().stream().mapToInt(List::size).sum() + nameOnlyHandlers.size());
 
         Set<MethodKey> matched = new HashSet<>();
+        Set<String> nameOnlyMatched = new HashSet<>();
         for (MethodNode method : target.methods) {
             MethodKey key = new MethodKey(method.name, method.desc);
             List<Method> handlers = handlersByTarget.get(key);
+            if (handlers == null && !nameOnlyHandlers.isEmpty()) {
+                // Try name-only match for handlers registered with empty desc
+                for (Method candidate : nameOnlyHandlers) {
+                    Inject inject = candidate.getAnnotation(Inject.class);
+                    Overwrite overwrite = candidate.getAnnotation(Overwrite.class);
+                    String targetName = inject != null ? inject.method()
+                            : overwrite != null ? overwrite.method() : null;
+                    if (targetName != null && targetName.equals(method.name)) {
+                        if (handlers == null) handlers = new ArrayList<>();
+                        handlers.add(candidate);
+                        nameOnlyMatched.add(method.name);
+                    }
+                }
+            }
             if (handlers == null) continue;
             matched.add(key);
             for (Method handler : handlers) {
@@ -121,11 +143,34 @@ public final class PatchTransformer {
                         target.name, entry.getKey().name(), entry.getKey().desc(), target.name);
             }
         }
+        // Warn about unmatched name-only handlers
+        for (Method handler : nameOnlyHandlers) {
+            if (!nameOnlyMatched.contains(getHandlerTargetMethodName(handler))) {
+                LOGGER.warn("Patch handler {}#{} is name-only (empty desc) but no method named \"{}\" exists on {} — handler will not run.",
+                        handler.getDeclaringClass().getName(), handler.getName(),
+                        getHandlerTargetMethodName(handler), target.name);
+            }
+        }
+    }
+
+    private static String getHandlerTargetMethodName(Method handler) {
+        Inject inject = handler.getAnnotation(Inject.class);
+        if (inject != null) return inject.method();
+        Overwrite overwrite = handler.getAnnotation(Overwrite.class);
+        if (overwrite != null) return overwrite.method();
+        Transform transform = handler.getAnnotation(Transform.class);
+        if (transform != null) return transform.method();
+        WrapInvoke wrap = handler.getAnnotation(WrapInvoke.class);
+        if (wrap != null) return wrap.method();
+        ModifyLocals modify = handler.getAnnotation(ModifyLocals.class);
+        if (modify != null) return modify.method();
+        return "?";
     }
 
     private static void collectHandler(Class<?> patchClass, String patchTargetOwner,
                                        Method handler,
-                                       Map<MethodKey, List<Method>> handlersByTarget) {
+                                       Map<MethodKey, List<Method>> handlersByTarget,
+                                       List<Method> nameOnlyHandlers) {
         if (!(handler.isAnnotationPresent(Inject.class)
                 || handler.isAnnotationPresent(Overwrite.class)
                 || handler.isAnnotationPresent(Transform.class)
@@ -176,7 +221,13 @@ public final class PatchTransformer {
         // production Forge environment the live class only has SRG names, so
         // remap before matching against ClassNode.methods.
         name = Bootstrap.remapMethod(patchTargetOwner, name, desc);
-        handlersByTarget.computeIfAbsent(new MethodKey(name, desc), k -> new ArrayList<>()).add(handler);
+        if (desc.isEmpty()) {
+            // Empty desc = match by method name only (wildcard for mod classes
+            // whose exact descriptor may vary between Yarn and Mojmap mappings).
+            nameOnlyHandlers.add(handler);
+        } else {
+            handlersByTarget.computeIfAbsent(new MethodKey(name, desc), k -> new ArrayList<>()).add(handler);
+        }
     }
 
     private static void validateInjectSignature(Class<?> patchClass, Method handler, Inject inject) {
@@ -700,7 +751,9 @@ public final class PatchTransformer {
 
     private static String targetClassName(Method handler) {
         Patch patch = handler.getDeclaringClass().getAnnotation(Patch.class);
-        return patch == null ? "?" : Type.getInternalName(patch.value());
+        if (patch == null) return "?";
+        if (!patch.className().isEmpty()) return patch.className().replace('.', '/');
+        return Type.getInternalName(patch.value());
     }
 
     private static List<AbstractInsnNode> collectInjectionPoints(InsnList insns, Slice slice,
