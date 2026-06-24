@@ -113,8 +113,8 @@ public class MusicPlayerScreen extends Screen {
         float openProgress = this.openAnim.getValueF();
 
         Renderer.render(guiGraphics, ctx -> {
-            float outerW = Math.max(360.0f, Math.min(this.width - 32.0f, 960.0f));
-            float outerH = Math.max(260.0f, Math.min(this.height - 32.0f, 540.0f));
+            float outerW = Math.max(260.0f, Math.min(this.width - 32.0f, 690.0f));
+            float outerH = Math.max(200.0f, Math.min(this.height - 32.0f, 385.0f));
             float ox = (this.width - outerW) * 0.5f;
             float oy = (this.height - outerH) * 0.5f;
 
@@ -209,13 +209,13 @@ public class MusicPlayerScreen extends Screen {
         float textY = inputY + (inputHeight - 24) / 2 + 10;
         String displayText = this.searchText.isEmpty() && !this.searchFocused ? "  Search songs..." : this.searchText;
         if (this.searchFocused) {
-            float cursorX = Math.min(inputX + inputWidth - buttonWidth - 10, inputX + 14 + measure(displayText, INPUT_FONT) + 2);
+            float cursorX = Math.min(inputX + inputWidth - buttonWidth - 10, inputX + 9 + measure(displayText, INPUT_FONT) + 2);
             float cursorH = 18;
             float cursorTop = inputY + (inputHeight - cursorH) / 2;
             float cursorBottom = cursorTop + cursorH;
             if (this.searchSelectAll && !this.searchText.isEmpty()) {
                 float selW = Math.min(inputWidth - buttonWidth - 30, measure(this.searchText, INPUT_FONT) + 4);
-                rounded(ctx, inputX + 12, cursorTop, selW, cursorBottom - cursorTop, 4, new int[]{255, 255, 255, 40});
+                rounded(ctx, inputX + 7, cursorTop, selW, cursorBottom - cursorTop, 4, new int[]{255, 255, 255, 40});
             } else {
                 float blink = (float) Math.abs(Math.sin(System.currentTimeMillis() / 200.0));
                 ctx.drawLine(cursorX, cursorTop, cursorX, cursorBottom,
@@ -223,7 +223,7 @@ public class MusicPlayerScreen extends Screen {
             }
         }
         int inputTextAlpha = this.searchText.isEmpty() && !this.searchFocused ? 120 : 180;
-        GlHelper.drawText(ellipsize(displayText, 40), inputX-8, textY, INPUT_FONT,
+        GlHelper.drawText(ellipsize(displayText, 40), inputX + 9, textY, INPUT_FONT,
                 ColorUtil.fromARGB(255, 255, 255, inputTextAlpha));
         this.clickAreas.add(new ClickArea(inputX, inputY, inputWidth - buttonWidth, inputHeight, () -> {
             this.searchFocused = true;
