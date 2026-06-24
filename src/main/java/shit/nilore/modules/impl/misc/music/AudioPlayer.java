@@ -19,6 +19,7 @@ public class AudioPlayer {
     private final AtomicReference<State> state = new AtomicReference<>(State.STOPPED);
     private volatile float volume = 0.8f;
     private volatile SongInfo currentSong;
+    private volatile String currentUrl;
     private volatile SourceDataLine currentLine;
     private volatile Thread playbackThread;
     private volatile boolean paused;
@@ -28,13 +29,19 @@ public class AudioPlayer {
     private volatile long pauseStartMs;
     private volatile long totalPausedMs;
 
+    // seek support
+    private volatile long seekTargetMs = -1;
+    private volatile long bytesConsumedFromStream = 0;
+
     public void play(SongInfo song, String url) {
         stop();
         this.currentSong = song;
+        this.currentUrl = url;
         this.state.set(State.LOADING);
         this.paused = false;
         this.totalPausedMs = 0;
         this.playStartMs = System.currentTimeMillis();
+        this.seekTargetMs = -1;
         playbackThread = new Thread(() -> playInternal(url), "MusicPlayer-Playback");
         playbackThread.setDaemon(true);
         playbackThread.start();
@@ -61,7 +68,9 @@ public class AudioPlayer {
     public void stop() {
         state.set(State.STOPPED);
         paused = false;
+        seekTargetMs = -1;
         currentSong = null;
+        currentUrl = null;
         if (currentLine != null) {
             try { currentLine.drain(); } catch (Exception ignored) {}
             try { currentLine.close(); } catch (Exception ignored) {}
@@ -84,6 +93,37 @@ public class AudioPlayer {
     public void setVolume(float vol) {
         this.volume = Math.max(0f, Math.min(1f, vol));
         applyVolume();
+    }
+
+    public void seekToMs(long targetMs) {
+        SongInfo song = currentSong;
+        if (song == null || song.duration <= 0) return;
+        State s = state.get();
+        if (s != State.PLAYING && s != State.PAUSED) return;
+        targetMs = Math.max(0, Math.min(targetMs, song.duration));
+        seekTargetMs = targetMs;
+    }
+
+    private void applySeek(long targetMs, AudioFormat format, SourceDataLine line) {
+        int bytesPerFrame = format.getFrameSize();
+        int sampleRate = (int) format.getSampleRate();
+        if (bytesPerFrame <= 0 || sampleRate <= 0) return;
+        long bytesToSkip = (long) (targetMs / 1000.0 * sampleRate * bytesPerFrame);
+        // Drain what's already written so the line plays from the new position
+        line.drain();
+        line.flush();
+        // We can't skip in the current stream, so signal restart
+        // playInternal will handle it via seekTargetMs
+    }
+
+    public void prevSongFallback() {
+        SongInfo song = currentSong;
+        if (song == null) return;
+        seekToMs(0);
+    }
+
+    public void nextSongFallback() {
+        // No-op without queue context
     }
 
     public float getVolume() { return volume; }
@@ -145,7 +185,6 @@ public class AudioPlayer {
                 if (frames > 0) {
                     currentSong.duration = (long)(frames / baseFormat.getSampleRate() * 1000);
                 } else {
-                    // fallback: estimate from Content-Length and bitrate
                     long contentLength = resp.headers().firstValueAsLong("Content-Length").orElse(-1);
                     if (contentLength > 0) {
                         int bytesPerSec = (int)(baseFormat.getSampleRate() * baseFormat.getFrameSize());
@@ -167,11 +206,52 @@ public class AudioPlayer {
             playStartMs = System.currentTimeMillis();
             totalPausedMs = 0;
             state.set(State.PLAYING);
+            bytesConsumedFromStream = 0;
+
+            int bytesPerFrame = decoded.getFrameSize();
+            int sampleRate = (int) decoded.getSampleRate();
 
             byte[] buffer = new byte[4096];
             int bytesRead;
             while ((bytesRead = ais.read(buffer, 0, buffer.length)) != -1) {
+                bytesConsumedFromStream += bytesRead;
                 if (Thread.currentThread().isInterrupted() || state.get() == State.STOPPED) break;
+
+                // Handle seek
+                long seek = seekTargetMs;
+                if (seek >= 0) {
+                    seekTargetMs = -1;
+                    long absoluteTargetBytes = (long) (seek / 1000.0 * sampleRate * bytesPerFrame);
+                    long relativeSkip = absoluteTargetBytes - bytesConsumedFromStream;
+
+                    if (relativeSkip > 0) {
+                        // Forward seek: skip bytes in current stream
+                        long skipped = 0;
+                        byte[] skipBuf = new byte[8192];
+                        while (skipped < relativeSkip) {
+                            if (Thread.currentThread().isInterrupted() || state.get() == State.STOPPED) break;
+                            long toRead = Math.min(skipBuf.length, relativeSkip - skipped);
+                            int n = ais.read(skipBuf, 0, (int) toRead);
+                            if (n < 0) break;
+                            skipped += n;
+                            bytesConsumedFromStream += n;
+                        }
+                    } else if (relativeSkip < 0) {
+                        // Backward seek: can't rewind HTTP stream, restart from URL
+                        seekTargetMs = seek; // preserve for restart
+                        localLine.flush();
+                        break;
+                    }
+
+                    localLine.flush();
+                    playStartMs = System.currentTimeMillis() - seek;
+                    totalPausedMs = 0;
+                    if (paused) {
+                        pauseStartMs = System.currentTimeMillis();
+                    }
+                    continue;
+                }
+
                 if (paused) {
                     Thread.sleep(50);
                     continue;
@@ -181,10 +261,20 @@ public class AudioPlayer {
 
             ais.close();
             rawStream.close();
+
+            // Check for pending backward seek — restart stream from URL
+            long pendingSeek = seekTargetMs;
+            if (pendingSeek >= 0 && state.get() != State.STOPPED) {
+                seekTargetMs = -1;
+                System.out.println("[MusicPlayer] Backward seek to " + pendingSeek + "ms, restarting stream");
+                playInternal(url); // recursive restart
+                return;
+            }
+
             if (state.get() == State.PLAYING) {
                 state.set(State.STOPPED);
             }
-            System.out.println("[MusicPlayer] Playback started successfully");
+            System.out.println("[MusicPlayer] Playback finished");
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (Exception e) {
