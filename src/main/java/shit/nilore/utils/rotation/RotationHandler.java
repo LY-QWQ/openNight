@@ -29,6 +29,7 @@ import shit.nilore.modules.impl.player.AutoMLG;
 import shit.nilore.modules.impl.player.AutoWebPlace;
 import shit.nilore.modules.impl.player.Helper;
 import shit.nilore.modules.impl.player.MidPearl;
+import shit.nilore.modules.impl.world.BlockIn;
 import shit.nilore.utils.animation.TickTimer;
 import shit.nilore.utils.game.MovementUtil;
 import shit.nilore.utils.misc.ReflectionUtil;
@@ -93,6 +94,7 @@ extends ClientBase {
             AutoThrow autoThrow = AutoThrow.INSTANCE;
             AntiKB antiKB = AntiKB.INSTANCE;
             MidPearl midPearl = MidPearl.INSTANCE;
+            BlockIn blockIn = BlockIn.INSTANCE;
             isRotating = true;
             if (autoMLG != null && autoMLG.isEnabled() && autoMLG.targetRotation != null) {
                 RotationHandler.setTargetRotation(autoMLG.targetRotation);
@@ -119,6 +121,8 @@ extends ClientBase {
                 RotationHandler.setTargetRotation(new Rotation(killAura.rotation.getYaw(), killAura.rotation.getPitch()));
             } else if (antiKB != null && antiKB.isEnabled() && AntiKB.rotation != null) {
                 RotationHandler.setTargetRotation(AntiKB.rotation);
+            } else if (blockIn != null && blockIn.isEnabled() && blockIn.targetRotation != null) {
+                RotationHandler.setTargetRotation(blockIn.targetRotation);
             } else {
                 isRotating = false;
             }
