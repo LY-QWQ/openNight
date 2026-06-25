@@ -39,7 +39,7 @@ public class DamageGlow extends Module {
     private final NumberSetting colorRSetting = new NumberSetting("Color R", 0, 0, 255, 1);
     private final NumberSetting colorGSetting = new NumberSetting("Color G", 0, 0, 255, 1);
     private final NumberSetting colorBSetting = new NumberSetting("Color B", 0, 0, 255, 1);
-    private final NumberSetting alphaSetting = new NumberSetting("Alpha", 45.0, 0.0, 255.0, 1.0);
+    private final NumberSetting alphaSetting = new NumberSetting("Alpha", 50.0, 0.0, 255.0, 1.0);
 
     public DamageGlow() {
         super("DamageGlow", Category.RENDER);

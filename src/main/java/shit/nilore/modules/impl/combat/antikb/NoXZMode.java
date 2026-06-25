@@ -42,7 +42,10 @@ import shit.nilore.modules.impl.combat.AntiKB;
 import shit.nilore.modules.impl.combat.KillAura;
 import shit.nilore.modules.impl.combat.antikb.AntiKBMode;
 import shit.nilore.modules.impl.player.Stuck;
+import shit.nilore.utils.game.RayTraceUtil;
 import shit.nilore.utils.misc.ChatUtil;
+import shit.nilore.utils.rotation.Rotation;
+import shit.nilore.utils.rotation.RotationHandler;
 
 public class NoXZMode
 extends AntiKBMode {
@@ -51,6 +54,7 @@ extends AntiKBMode {
     public static int attackCount;
     private int attackCooldown = 0;
     private Entity attackTarget = null;
+    private Entity pendingTarget = null;
     private int attacksRemaining = 0;
     private int flagCooldown = 0;
     private boolean shouldJump = false;
@@ -65,6 +69,12 @@ extends AntiKBMode {
     private float instantAttackProgress = 0.0f;
     private boolean isInstantAttacking = false;
     private boolean shouldFlushMotion;
+
+    private void log(String message) {
+        if (AntiKB.INSTANCE.log.getValue()) {
+            log(message);
+        }
+    }
 
     @Override
     public boolean isActive() {
@@ -133,7 +143,7 @@ extends AntiKBMode {
                 this.release();
             }
             this.resetSuspension();
-            ChatUtil.print("Flag Detected");
+            log("Flag Detected");
             this.flagCooldown = 2;
         }
         if (this.flagCooldown != 0) {
@@ -168,14 +178,14 @@ extends AntiKBMode {
                     this.knockbackPacket = motionPacket;
                     receivePacketEvent.setCancelled(true);
                 } else if (canAttack) {
-                    this.attackTarget = target;
+                    this.pendingTarget = target;
                     this.attacksRemaining = AntiKB.INSTANCE.attackAmount.getValue().intValue();
                 } else {
                     this.isSuspending = true;
                     this.suspendTicks = 0;
                     this.knockbackPacket = motionPacket;
                     receivePacketEvent.setCancelled(true);
-                    ChatUtil.print("Alink Wait");
+                    log("Alink Wait");
                 }
             }
         }
@@ -209,6 +219,7 @@ extends AntiKBMode {
 
     private void clearTarget() {
         this.attackTarget = null;
+        this.pendingTarget = null;
         this.attacksRemaining = 0;
     }
 
@@ -279,8 +290,30 @@ extends AntiKBMode {
         if (entity instanceof LivingEntity && ((livingEntity = (LivingEntity)entity).isDeadOrDying() || livingEntity.getHealth() <= 0.0f)) {
             return false;
         }
-        double maxReach = 3.7f;
-        return !(this.getAABBDistance(entity) > maxReach);
+        if (this.getAABBDistance(entity) > AntiKB.INSTANCE.maxReach.getValue().doubleValue()){
+            log("Out of Reach");
+            return false;
+        }
+        //增加了一个RayTrace
+        if (AntiKB.INSTANCE.raytraceCheck.getValue()){
+            Rotation rotation = new Rotation(RotationHandler.sentRotation.getYaw(), RotationHandler.sentRotation.getPitch());
+            float inflate = 0.0f;
+            boolean ignoreBlocks = false;
+            HitResult hitResult = RayTraceUtil.rayTraceForEntity(
+                    rotation,
+                    AntiKB.INSTANCE.maxReach.getValue().doubleValue(),
+                    inflate,
+                    mc.player,
+                    entity,
+                    ignoreBlocks
+            );
+            if (!(hitResult instanceof EntityHitResult) ||
+                    ((EntityHitResult) hitResult).getEntity() != entity) {
+                log("Raytrace failed");
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override
@@ -329,7 +362,7 @@ extends AntiKBMode {
             boolean onGround = mc.player.onGround();
             boolean isTimeout = this.suspendTicks >= 12;
             if (onGround || isTimeout) {
-                ChatUtil.print(isTimeout ? "Alink Timeout" : "ground");
+                log(isTimeout ? "Alink Timeout" : "ground");
                 if (instantAttackEnabled) {
                     NiloreClient.serverTickRate = 1.0f;
                 }
@@ -338,19 +371,30 @@ extends AntiKBMode {
                 boolean sprinting = mc.player.isSprinting();
                 if (onGround && canAttack && sprinting) {
                     this.isFlushing = true;
-                    this.attackTarget = target;
+                    this.pendingTarget = target;
                     this.attacksRemaining = AntiKB.INSTANCE.attackAmount.getValue().intValue();
                     this.sendMovePackets();
                     this.applyKnockbackPacket();
                     if (instantAttackEnabled && this.instantAttackProgress > 0.0f) {
                         this.attacksRemaining = (int)this.instantAttackProgress;
                         this.scheduleMotionFlush();
+
+                        if (this.pendingTarget != null && this.isValidTarget(this.pendingTarget)) {
+                            this.attackTarget = this.pendingTarget;
+                        }
+                        this.pendingTarget = null;
+
                         this.isSuspending = false;
                         this.suspendTicks = 0;
                         this.isFlushing = false;
                         this.isInstantAttacking = true;
                         NiloreClient.serverTickRate = 4.0f;
                     } else {
+                        if (this.pendingTarget != null && this.isValidTarget(this.pendingTarget)) {
+                            this.attackTarget = this.pendingTarget;
+                        }
+                        this.pendingTarget = null;
+
                         this.doAttackSequence(tickEvent);
                         this.scheduleMotionFlush();
                         this.isSuspending = false;
@@ -376,7 +420,7 @@ extends AntiKBMode {
                 this.instantAttackProgress = 0.0f;
                 this.isInstantAttacking = false;
                 NiloreClient.serverTickRate = 1.0f;
-                ChatUtil.print("done");
+                log("done");
             }
         }
         if (this.attacksRemaining > 0 && this.attackTarget != null) {
@@ -401,14 +445,41 @@ extends AntiKBMode {
     }
 
     private void doAttackSequence(TickEvent tickEvent) {
-        if (this.attackTarget == null || !this.attackTarget.isAlive()) {
+        Entity aimed = this.getHitResultEntity();
+
+        // 增加了 aimed == null 以及 aimed != this.attackTarget 的检验。
+        // 如果视线中没有指向实体，或者指向的实体不是当前要攻击的 target，直接清空目标并取消攻击。
+        if (this.attackTarget == null
+                || !this.attackTarget.isAlive()
+                || aimed == null
+                || aimed != this.attackTarget) {
+            log("aim point mismatch");
             this.clearTarget();
             return;
         }
-        double maxReach = 3.7f;
-        if (this.getAABBDistance(this.attackTarget) > maxReach) {
+        if (this.getAABBDistance(this.attackTarget) > AntiKB.INSTANCE.maxReach.getValue().doubleValue()) {
+            log("Out of Reach");
             this.clearTarget();
             return;
+        }
+        if (AntiKB.INSTANCE.raytraceCheck.getValue()){
+            Rotation rotation = new Rotation(RotationHandler.sentRotation.getYaw(), RotationHandler.sentRotation.getPitch());
+            float inflate = 0.0f;
+            boolean ignoreBlocks = false;
+            HitResult hitResult = RayTraceUtil.rayTraceForEntity(
+                    rotation,
+                    AntiKB.INSTANCE.maxReach.getValue().doubleValue(),
+                    inflate,
+                    mc.player,
+                    this.attackTarget,
+                    ignoreBlocks
+            );
+            if (!(hitResult instanceof EntityHitResult) ||
+                    ((EntityHitResult) hitResult).getEntity() != this.attackTarget) {
+                log("Raytrace failed");
+                this.clearTarget();
+                return;
+            }
         }
         isAttacking = true;
         attackCount = this.attacksRemaining--;
@@ -417,7 +488,7 @@ extends AntiKBMode {
         if (this.attacksRemaining <= 0) {
             this.clearTarget();
             if (AntiKB.INSTANCE.instantAttack.getValue()) {
-                ChatUtil.print("Attack (" + AntiKB.INSTANCE.attackAmount.getValue().intValue() + ")");
+                log("Attack (" + AntiKB.INSTANCE.attackAmount.getValue().intValue() + ")");
             }
         }
     }
@@ -427,7 +498,7 @@ extends AntiKBMode {
             return false;
         }
         if (AntiKB.INSTANCE.sprintStateCheck.getValue() && !mc.player.isSprinting()) {
-            ChatUtil.print("not sprinting");
+            log("not sprinting");
             return false;
         }
         boolean wasSprinting = mc.player.isSprinting();
@@ -441,7 +512,7 @@ extends AntiKBMode {
             mc.player.setDeltaMovement(velocity.x * 0.6, velocity.y, velocity.z * 0.6);
         }
         if (!AntiKB.INSTANCE.instantAttack.getValue()) {
-            ChatUtil.print("Attack (" + this.attacksRemaining + ")");
+            log("Attack (" + this.attacksRemaining + ")");
         }
         return true;
     }
@@ -488,6 +559,12 @@ extends AntiKBMode {
         this.sendMovePackets();
         this.applyKnockbackPacket();
         this.scheduleMotionFlush();
+
+        if (this.pendingTarget != null && this.isValidTarget(this.pendingTarget)) {
+            this.attackTarget = this.pendingTarget;
+        }
+        this.pendingTarget = null;
+
         this.isFlushing = false;
         this.isSuspending = false;
         this.suspendTicks = 0;

@@ -12,7 +12,7 @@ import shit.nilore.settings.impl.NumberSetting;
 
 public class OldHitting
 extends Module {
-    private final ModeSetting animationModeSetting = new ModeSetting("Animation", "Vanilla", "Leaked", "Slide").withDefault("Leaked");
+    private final ModeSetting animationModeSetting = new ModeSetting("Animation", "Vanilla", "Leaked", "Slide").withDefault("Vanilla");
     private final NumberSetting sizeSetting = new NumberSetting("Size", 1.0, 0.1, 3.0, 0.1);
     private final NumberSetting speedSetting = new NumberSetting("Speed", 1.0, 0.1, 5.0, 0.1);
     private final NumberSetting yOffsetSetting = new NumberSetting("Y-Offset", 0.0, -1.0, 1.0, 0.1);

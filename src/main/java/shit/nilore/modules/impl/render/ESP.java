@@ -48,7 +48,7 @@ public class ESP extends Module {
             }
         }
 
-    private final ModeSetting modeSetting = new ModeSetting("Mode", "Glow", "Outlined 2D").withDefault("Outlined 2D");
+    private final ModeSetting modeSetting = new ModeSetting("Mode", "Glow", "Outlined 2D").withDefault("Glow");
     private final BooleanSetting skeletonSetting = new BooleanSetting("Skeleton", false);
     private final BooleanSetting playersSetting = new BooleanSetting("Players", true);
     private final BooleanSetting mobsSetting = new BooleanSetting("Mobs", false);
@@ -58,7 +58,7 @@ public class ESP extends Module {
     private final Map<Entity, Pair<Vector4d, Boolean>> entityBoxPositions = new HashMap<>();
     private final Map<Entity, float[][]> playerBoneRotations = new HashMap<>();
     private final BooleanSetting showHealthBarSetting = new BooleanSetting("Show Health Bar", true);
-    private final ModeSetting healthBarPositionSetting = new ModeSetting("Health Bar Position", "Bottom", "Top", "Left", "Right").withDefault("Bottom");
+    private final ModeSetting healthBarPositionSetting = new ModeSetting("Health Bar Position", "Bottom", "Top", "Left", "Right").withDefault("Left");
     private final List<Entity> visibleEntities = new ArrayList<>();
     private final List<Vector2f> projectedPoints = new ArrayList<>();
 

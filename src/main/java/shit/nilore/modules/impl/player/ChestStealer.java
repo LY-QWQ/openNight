@@ -55,15 +55,15 @@ extends Module {
 
     public static ChestStealer INSTANCE;
     private static final Timer actionTimer;
-    private final NumberSetting clickDelaySetting = new NumberSetting("Delay", 200, 0, 1000, 10);
-    private final NumberSetting openDelaySetting = new NumberSetting("Open Delay", 2, 0, 10, 1);
+    private final NumberSetting clickDelaySetting = new NumberSetting("Delay", 80, 0, 1000, 10);
+    private final NumberSetting openDelaySetting = new NumberSetting("Open Delay", 3, 0, 10, 1);
     private final BooleanSetting chestSetting = new BooleanSetting("Chest", true);
     private final BooleanSetting enderChestSetting = new BooleanSetting("Ender Chest", false);
     private final BooleanSetting furnaceSetting = new BooleanSetting("Furnace", true);
     private final BooleanSetting brewingStandSetting = new BooleanSetting("BrewingStand", true);
     private final BooleanSetting pickTrashSetting = new BooleanSetting("PickTrash", false);
     private final BooleanSetting onlyBestSetting = new BooleanSetting("Only Best", true);
-    private final BooleanSetting randomClickSetting = new BooleanSetting("Random Click", false);
+    private final BooleanSetting randomClickSetting = new BooleanSetting("Random Click", true);
     private final BooleanSetting smartStealingSetting = new BooleanSetting("Smart Stealing", true);
     private static final Timer stealTimer;
     private static final Timer openTimer;

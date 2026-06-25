@@ -16,7 +16,7 @@ import shit.nilore.event.EventTarget;
 public class NameProtect
 extends Module {
     public static NameProtect INSTANCE;
-    private final ModeSetting modeSetting = new ModeSetting("Mode", "Fixed", "Random","Hidden").withDefault("Fixed");
+    private final ModeSetting modeSetting = new ModeSetting("Mode", "Fixed", "Random","Hidden").withDefault("Hidden");
     private String cachedRandomName = null;
     private final Random random = new Random();
 

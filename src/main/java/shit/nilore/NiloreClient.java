@@ -26,6 +26,7 @@ import shit.nilore.patch.ChatScreenPatch;
 import shit.nilore.patch.ClientLevelPatch;
 import shit.nilore.patch.ConnectionPatch;
 import shit.nilore.patch.EntityPatch;
+import shit.nilore.patch.EntityRenderDispatcherPatch;
 import shit.nilore.patch.EntityRendererPatch;
 import shit.nilore.patch.FriendlyByteBufPatch;
 import shit.nilore.patch.BlockOcclusionCachePatch;
@@ -200,6 +201,7 @@ public class NiloreClient extends ClientBase {
         PatchRegistry.register(KeyboardInputPatch.class);
         PatchRegistry.register(ChatScreenPatch.class);
         PatchRegistry.register(EntityRendererPatch.class);
+        PatchRegistry.register(EntityRenderDispatcherPatch.class);
         PatchRegistry.register(LevelRendererPatch.class);
         PatchRegistry.register(GameRendererPatch.class);
         PatchRegistry.register(ItemInHandRendererPatch.class);

@@ -59,6 +59,7 @@ import shit.nilore.modules.impl.render.ClickGuiModule;
 import shit.nilore.modules.impl.render.Compass;
 import shit.nilore.modules.impl.render.DamageGlow;
 import shit.nilore.modules.impl.render.ESP;
+import shit.nilore.modules.impl.render.EntityEditor;
 import shit.nilore.modules.impl.render.FullBright;
 import shit.nilore.modules.impl.render.Interface;
 import shit.nilore.modules.impl.render.ItemTags;
@@ -140,6 +141,7 @@ public class ModuleManager extends ClientBase {
         this.register(new Compass());
         this.register(new DamageGlow());
         this.register(new ESP());
+        this.register(new EntityEditor());
         this.register(new FullBright());
         this.register(new Interface());
         this.register(new ItemTags());

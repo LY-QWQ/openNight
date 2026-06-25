@@ -70,10 +70,10 @@ public class KillAura extends Module {
     // Fields kept in sync with the obfuscated jar: 12 BooleanSetting / 7
     // NumberSetting / 3 ModeSetting, in declaration order.
     public final BooleanSetting attackPlayer    = new BooleanSetting("Attack Player", true);
-    public final BooleanSetting attackInvisible = new BooleanSetting("Attack Invisible", false);
+    public final BooleanSetting attackInvisible = new BooleanSetting("Attack Invisible", true);
     public final BooleanSetting attackAnimals   = new BooleanSetting("Attack Animals", false);
-    public final BooleanSetting attackMobs      = new BooleanSetting("Attack Mobs", true);
-    public final BooleanSetting multiAttack     = new BooleanSetting("Multi Attack", true);
+    public final BooleanSetting attackMobs      = new BooleanSetting("Attack Mobs", false);
+    public final BooleanSetting multiAttack     = new BooleanSetting("Multi Attack", false);
     public final BooleanSetting infSwitch       = new BooleanSetting("Infinity Switch", false);
     public final BooleanSetting preferBaby      = new BooleanSetting("Prefer Baby", false);
     public final BooleanSetting morePart        = new BooleanSetting("More Particles", false);
@@ -81,7 +81,7 @@ public class KillAura extends Module {
     public final BooleanSetting ignoreSkipTicks = new BooleanSetting("Ignore skip ticks", false);
     public final BooleanSetting fakeAutoBlock   = new BooleanSetting("Fake AutoBlock", true);
     public final BooleanSetting test            = new BooleanSetting("Test", false);
-    public final NumberSetting aimRange    = new NumberSetting("Aim Range", 4.0, 1.0, 6.0, 0.1);
+    public final NumberSetting aimRange    = new NumberSetting("Aim Range", 3.0, 1.0, 6.0, 0.1);
     public final NumberSetting maxAps      = new NumberSetting("Max APS", 12.0, 1.0, 20.0, 1.0);
     public final NumberSetting minAps      = new NumberSetting("Min APS", 9.0, 1.0, 20.0, 1.0);
     public final NumberSetting switchSize  = new NumberSetting("Switch Size", 1.0, 1.0, 5.0, 1.0,
@@ -91,12 +91,12 @@ public class KillAura extends Module {
     public final NumberSetting hurtTime    = new NumberSetting("Hurt Time", 10.0, 0.0, 10.0, 1.0);
     public final ModeSetting delayMode    = new ModeSetting("Delay Mode", "1.8", "1.9").withDefault("1.8");
     public final ModeSetting priorityMode = new ModeSetting("Priority", "Distance", "FoV", "Health", "None").withDefault("FoV");
-    public final ModeSetting targetEsp    = new ModeSetting("Target ESP", "None", "Spiral", "Box", "Tab").withDefault("None");
+    public final ModeSetting targetEsp    = new ModeSetting("Target ESP", "None", "Spiral", "Box", "Tab").withDefault("Spiral");
 
-    public final BooleanSetting predictionEnabled  = new BooleanSetting("Prediction", false);
-    public final NumberSetting enemyDelayThreshold = new NumberSetting("Enemy Delay Ticks", 3, 1, 5, 1,
+    public final BooleanSetting predictionEnabled  = new BooleanSetting("Prediction", true);
+    public final NumberSetting enemyDelayThreshold = new NumberSetting("Enemy Delay Ticks", 4, 1, 5, 1,
             () -> (Boolean) this.predictionEnabled.getValue());
-    public final NumberSetting selfDelayThreshold  = new NumberSetting("Self Delay Ticks", 3, 1, 5, 1,
+    public final NumberSetting selfDelayThreshold  = new NumberSetting("Self Delay Ticks", 2, 1, 5, 1,
             () -> (Boolean) this.predictionEnabled.getValue());
 
     public final NumberSetting rotationSpeed = new NumberSetting("Rotation Speed", 180, 0, 720, 5);
