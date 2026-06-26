@@ -47,8 +47,8 @@ public class BlockIn extends Module {
     public final BooleanSetting roofSupport = new BooleanSetting("Roof Support", true);
     public final BooleanSetting diagonalSupport = new BooleanSetting("Diagonal Support", true);
     public final BooleanSetting pillarSupport = new BooleanSetting("Pillar Support", true);
-    public final BooleanSetting useJump = new BooleanSetting("Use Jump", false);
-    public final NumberSetting jumpTicks = new NumberSetting("Jump Ticks", 3, 1, 8, 1);
+    public final BooleanSetting useJump = new BooleanSetting("Use Jump", true);
+    public final NumberSetting jumpTicks = new NumberSetting("Jump Ticks", 2, 1, 8, 1);
     public final BooleanSetting debug = new BooleanSetting("Debug", false);
 
 
