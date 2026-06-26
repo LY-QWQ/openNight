@@ -36,7 +36,7 @@ extends Module {
     public final BooleanSetting followDirection = new BooleanSetting("Follow Direction", false, () -> mode.is("Jump Reset"));
     public final NumberSetting rotateTicks = new NumberSetting("Rotate Ticks", 12, 3, 20, 1, () -> mode.is("Jump Reset") && (this.rotate.getValue() != false || this.followDirection.getValue() != false));
     public final NumberSetting attackAmount = new NumberSetting("Attack amount", 5.0, 1.0, 20.0, 1, () -> mode.is("NoXZ"));
-    public final NumberSetting maxReach = new NumberSetting("Max Reach", 3.0, 1.0, 5.0, 0.1, () -> mode.is("NoXZ"));
+    public final NumberSetting maxReach = new NumberSetting("Max Reach", 3.1, 1.0, 5.0, 0.1, () -> mode.is("NoXZ"));
     public final BooleanSetting instantAttack = new BooleanSetting("Instant Attack", false, () -> mode.is("NoXZ"));
     public final BooleanSetting sprintStateCheck = new BooleanSetting("Sprint state check", true, () -> mode.is("NoXZ"));
     public final BooleanSetting raytraceCheck = new BooleanSetting("Raytrace Check", true, () -> mode.is("NoXZ"));
