@@ -25,18 +25,15 @@ import shit.nilore.settings.impl.BooleanSetting;
 import shit.nilore.settings.impl.ModeSetting;
 import shit.nilore.settings.impl.NumberSetting;
 import shit.nilore.utils.game.BlockUtil;
+import shit.nilore.utils.game.RayTraceUtil;
 import shit.nilore.utils.game.RotationUtil;
 import shit.nilore.utils.misc.ChatUtil;
 import shit.nilore.utils.rotation.Rotation;
+import shit.nilore.utils.rotation.RotationHandler;
 
 public class BlockIn extends Module {
     public static BlockIn INSTANCE;
 
-    private static final double JUMP_SUPPORT_MIN_PEAK_Y = 0.85;
-    private static final double JUMP_SUPPORT_MAX_UP_VY = 0.12;
-    private static final double JUMP_SUPPORT_MAX_DOWN_VY = -0.08;
-
-    // Settings
     public final BooleanSetting autoDisable = new BooleanSetting("Auto Disable", true);
     public final ModeSetting placeOrder = new ModeSetting("Place Order", "Normal", "Normal", "Random", "BottomTop", "TopBottom").withDefault("Normal");
     public final BooleanSetting autoBlock = new BooleanSetting("Auto Block", true);
@@ -45,6 +42,8 @@ public class BlockIn extends Module {
     public final NumberSetting range = new NumberSetting("Range", 4.5, 1.0, 6.0, 0.1);
     public final NumberSetting cooldown = new NumberSetting("Cooldown", 1, 0, 20, 1);
     public final BooleanSetting rotation = new BooleanSetting("Rotation", true);
+    public final BooleanSetting smooth = new BooleanSetting("Smooth", false, () -> this.rotation.getValue());
+    public final NumberSetting rotationTicks = new NumberSetting("Rotation Ticks", 3, 1, 6, 1, () -> this.rotation.getValue() && this.smooth.getValue());
     public final BooleanSetting roofSupport = new BooleanSetting("Roof Support", true);
     public final BooleanSetting diagonalSupport = new BooleanSetting("Diagonal Support", true);
     public final BooleanSetting pillarSupport = new BooleanSetting("Pillar Support", true);
@@ -52,14 +51,15 @@ public class BlockIn extends Module {
     public final NumberSetting jumpTicks = new NumberSetting("Jump Ticks", 3, 1, 8, 1);
     public final BooleanSetting debug = new BooleanSetting("Debug", false);
 
-    // State
+
+    public Rotation targetRotation = null;
     private BlockPos startPos;
     private boolean rotateClockwise;
     private int oldSlot = -1;
-    private int tickCounter;
+
     private int cooldownTimer;
 
-    // Roof support state
+
     private RoofPhase roofPhase = RoofPhase.NORMAL;
     private BlockPos roofPos;
     private BlockPos roofSupportPos;
@@ -86,7 +86,8 @@ public class BlockIn extends Module {
             this.oldSlot = mc.player.getInventory().selected;
             this.resetRoofState();
         }
-        this.tickCounter = 0;
+        this.targetRotation = null;
+
         this.cooldownTimer = 0;
         super.onEnable();
     }
@@ -97,6 +98,7 @@ public class BlockIn extends Module {
         this.restoreSlot();
         this.resetRoofState();
         this.startPos = null;
+        this.targetRotation = null;
         super.onDisable();
     }
 
@@ -116,7 +118,6 @@ public class BlockIn extends Module {
             return;
         }
 
-        this.tickCounter++;
         this.updateJumpControl();
 
         if (this.cooldownTimer > 0) {
@@ -126,13 +127,13 @@ public class BlockIn extends Module {
 
         List<BlockPos> positions = this.generatePositions();
         if (positions.isEmpty()) {
-            if (this.autoDisable.getValue()) {
+            if (!useJump.getValue()){
                 this.setEnabled(false);
+                return;
             }
             return;
         }
 
-        // Try to place one block per tick
         for (BlockPos pos : positions) {
             if (this.tryPlaceBlock(pos)) {
                 this.cooldownTimer = this.cooldown.getValue().intValue();
@@ -140,7 +141,6 @@ public class BlockIn extends Module {
             }
         }
 
-        // Check completion
         if (this.autoDisable.getValue() && this.isComplete()) {
             if (this.debug.getValue()) {
                 ChatUtil.print("[BlockIn] Complete, disabling");
@@ -162,41 +162,27 @@ public class BlockIn extends Module {
             return List.of();
         }
 
-        // Floor
-        result.add(this.startPos.below());
+        boolean baseComplete = this.isBaseComplete(playerHeight);
 
-        // Walls (4 directions × player height)
+        List<BlockPos> baseBlocks = new ArrayList<>();
+
+        baseBlocks.add(this.startPos.below());
+
         for (Direction dir : this.getOrderedDirections()) {
             BlockPos wallBase = this.startPos.relative(dir);
             for (int i = 0; i < playerHeight; i++) {
-                result.add(wallBase.above(i));
+                baseBlocks.add(wallBase.above(i));
             }
         }
 
-        // Roof
-        result.add(this.roofPos);
+        List<BlockPos> ordered = this.orderPositions(baseBlocks);
 
-        // Order
-        List<BlockPos> ordered = this.orderPositions(new ArrayList<>(result));
-
-        // Insert roof support if needed
-        BlockPos support = this.updateRoofSupport(playerHeight);
-        if (support != null && this.roofPos != null) {
-            List<BlockPos> withSupport = new ArrayList<>();
-            boolean inserted = false;
-            for (BlockPos pos : ordered) {
-                if (!inserted && pos.equals(this.roofPos)) {
-                    withSupport.add(support);
-                    inserted = true;
-                }
-                if (!pos.equals(support)) {
-                    withSupport.add(pos);
-                }
+        if (baseComplete) {
+            BlockPos support = this.updateRoofSupport(playerHeight);
+            if (support != null) {
+                ordered.add(support);
             }
-            if (!inserted) {
-                withSupport.add(support);
-            }
-            return withSupport;
+            ordered.add(this.roofPos);
         }
 
         return ordered;
@@ -219,23 +205,37 @@ public class BlockIn extends Module {
             return false;
         }
 
-        // Skip if already solid
-        if (BlockUtil.isSolid(targetPos)) {
+        if (!mc.level.getBlockState(targetPos).canBeReplaced()) {
             return false;
         }
 
-        // Find slot with placeable block
+        boolean isRoofSupport = this.roofSupportPos != null && targetPos.equals(this.roofSupportPos);
+        boolean isRoof = this.roofPos != null && targetPos.equals(this.roofPos);
+
+        // Roof support can only be placed when player is in the air (jumping)
+        if (isRoofSupport && mc.player.onGround()) {
+            return false;
+        }
+
+        if (isRoof) {
+            if (!mc.player.onGround()) {
+                return false;
+            }
+            // Check if roof support is ready
+            if (this.roofSupportPos != null && !BlockUtil.isSolid(this.roofSupportPos)) {
+                return false;
+            }
+        }
+
         int slot = this.findPlaceableSlot();
         if (slot == -1) {
             return false;
         }
 
-        // Switch to slot
         if (slot != mc.player.getInventory().selected) {
             mc.player.getInventory().selected = slot;
         }
 
-        // Find adjacent solid block to place against
         Direction face = this.findPlacementFace(targetPos);
         if (face == null) {
             return false;
@@ -243,18 +243,34 @@ public class BlockIn extends Module {
 
         BlockPos againstPos = targetPos.relative(face.getOpposite());
 
-        // Rotate if enabled
         if (this.rotation.getValue()) {
             Vec3 hitVec = new Vec3(
                     againstPos.getX() + 0.5 + face.getStepX() * 0.5,
                     againstPos.getY() + 0.5 + face.getStepY() * 0.5,
                     againstPos.getZ() + 0.5 + face.getStepZ() * 0.5);
-            Rotation rot = RotationUtil.rotationFromVec(hitVec);
-            mc.player.setYRot(rot.getYaw());
-            mc.player.setXRot(rot.getPitch());
+            Rotation targetRot = RotationUtil.rotationFromVec(hitVec);
+
+            if (this.smooth.getValue() && mc.player != null) {
+                Rotation currentRot = this.targetRotation != null
+                        ? this.targetRotation
+                        : new Rotation(mc.player.getYRot(), mc.player.getXRot());
+                double speed = 180.0 / this.rotationTicks.getValue().doubleValue();
+                this.targetRotation = RotationUtil.smoothRotation(currentRot, targetRot, speed);
+            } else {
+                this.targetRotation = targetRot;
+            }
+
+            if (RotationHandler.targetRotation != null) {
+                boolean canRayTrace = RayTraceUtil.canRayTrace(RotationHandler.targetRotation, face, againstPos, false);
+                if (!canRayTrace) {
+                    return false;
+                }
+            }
+        } else {
+            this.targetRotation = null;
+
         }
 
-        // Place block
         BlockHitResult hit = new BlockHitResult(
                 new Vec3(
                         againstPos.getX() + 0.5 + face.getStepX() * 0.5,
@@ -275,10 +291,9 @@ public class BlockIn extends Module {
 
     private Direction findPlacementFace(BlockPos targetPos) {
         if (mc.level == null) return null;
-        // Check each face: find an adjacent solid block
         for (Direction face : Direction.values()) {
             BlockPos neighbor = targetPos.relative(face);
-            if (BlockUtil.isSolid(neighbor)) {
+            if (!mc.level.getBlockState(neighbor).canBeReplaced()) {
                 return face.getOpposite();
             }
         }
@@ -329,8 +344,6 @@ public class BlockIn extends Module {
         this.oldSlot = -1;
     }
 
-    // --- Roof Support ---
-
     private BlockPos updateRoofSupport(int playerHeight) {
         if (mc.player == null || mc.level == null || this.startPos == null || this.roofPos == null) {
             this.clearRoofSupport("no-player");
@@ -341,30 +354,25 @@ public class BlockIn extends Module {
             return null;
         }
 
-        // Roof already placed?
         if (BlockUtil.isSolid(this.roofPos)) {
             this.clearRoofSupport("roof-done");
             return null;
         }
 
-        // Can place roof directly?
         if (this.findPlacementFace(this.roofPos) != null) {
             this.clearRoofSupport("roof-direct");
             return null;
         }
 
-        // Base structure complete?
         if (!this.isBaseComplete(playerHeight)) {
             this.clearRoofSupport("base-pending");
             return null;
         }
 
-        // Keep existing support plan
         if (this.roofSupportPos != null && !BlockUtil.isSolid(this.roofSupportPos)) {
             return this.roofSupportPos;
         }
 
-        // Try diagonal support
         if (this.diagonalSupport.getValue()) {
             BlockPos diag = this.findDiagonalSupport(playerHeight);
             if (diag != null) {
@@ -374,7 +382,6 @@ public class BlockIn extends Module {
             }
         }
 
-        // Try jump pillar support
         if (this.pillarSupport.getValue() && this.useJump.getValue()) {
             BlockPos jump = this.findPillarSupport(playerHeight);
             if (jump != null) {
@@ -384,7 +391,6 @@ public class BlockIn extends Module {
             }
         }
 
-        // Try normal pillar support
         if (this.pillarSupport.getValue()) {
             BlockPos pillar = this.findPillarSupport(playerHeight);
             if (pillar != null) {
@@ -404,7 +410,6 @@ public class BlockIn extends Module {
             for (int dz : offsets) {
                 BlockPos diagonal = this.startPos.offset(dx, playerHeight, dz);
                 if (!BlockUtil.isSolid(diagonal)) continue;
-                // Try placing support adjacent to diagonal
                 BlockPos xSupport = this.startPos.offset(dx, playerHeight, 0);
                 if (!BlockUtil.isSolid(xSupport) && this.findPlacementFace(xSupport) != null) {
                     return xSupport;
@@ -430,9 +435,7 @@ public class BlockIn extends Module {
 
     private boolean isBaseComplete(int playerHeight) {
         if (mc.player == null || this.startPos == null) return false;
-        // Check floor
         if (!BlockUtil.isSolid(this.startPos.below())) return false;
-        // Check walls
         for (Direction dir : this.getOrderedDirections()) {
             BlockPos wallBase = this.startPos.relative(dir);
             for (int i = 0; i < playerHeight; i++) {
@@ -445,21 +448,16 @@ public class BlockIn extends Module {
     private boolean isComplete() {
         if (mc.player == null || this.startPos == null) return false;
         int playerHeight = Mth.ceil(mc.player.getBbHeight());
-        // Check floor
         if (!BlockUtil.isSolid(this.startPos.below())) return false;
-        // Check walls
         for (Direction dir : this.getOrderedDirections()) {
             BlockPos wallBase = this.startPos.relative(dir);
             for (int i = 0; i < playerHeight; i++) {
                 if (!BlockUtil.isSolid(wallBase.above(i))) return false;
             }
         }
-        // Check roof
         if (!BlockUtil.isSolid(this.roofPos)) return false;
         return true;
     }
-
-    // --- Jump Control ---
 
     private void updateJumpControl() {
         if (mc.player == null || mc.options == null) return;
@@ -513,8 +511,6 @@ public class BlockIn extends Module {
         KeyMapping.set(key.getKey(), down);
         key.setDown(down);
     }
-
-    // --- Helpers ---
 
     private Direction[] getOrderedDirections() {
         Direction[] result = new Direction[4];
