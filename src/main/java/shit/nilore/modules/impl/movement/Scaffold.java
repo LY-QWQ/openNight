@@ -4,14 +4,10 @@ import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import java.awt.Color;
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
-import net.minecraft.network.protocol.game.ServerGamePacketListener;
 import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
 import net.minecraft.network.protocol.game.ServerboundUseItemPacket;
 import net.minecraft.util.Mth;
@@ -82,7 +78,6 @@ public class Scaffold extends Module {
     private int groundTicks = 0;
     private int airTicks = 0;
     private int rotationDelay = 0;
-    private final CopyOnWriteArrayList<CopyOnWriteArrayList<Packet<?>>> packetBatches = new CopyOnWriteArrayList<>();
     private int jitterCounter;
     private double yawDiff;
     private double pitchDiff;
@@ -117,8 +112,6 @@ public class Scaffold extends Module {
             this.tickRotationSnapshot = new Rotation();
             this.canBuildNow = true;
             this.needsLookAdjustment = false;
-            this.packetBatches.clear();
-            this.packetBatches.add(new CopyOnWriteArrayList<>());
             this.jumpHeld = false;
         }
         super.onEnable();
@@ -127,8 +120,6 @@ public class Scaffold extends Module {
     @Override
     public void onDisable() {
         if (mc != null && mc.player != null) {
-            this.packetBatches.forEach(this::processBatchedPackets);
-            this.packetBatches.clear();
             boolean jumpDown = InputConstants.isKeyDown(mc.getWindow().getWindow(), mc.options.keyJump.getKey().getValue());
             boolean shiftDown = InputConstants.isKeyDown(mc.getWindow().getWindow(), mc.options.keyShift.getKey().getValue());
             mc.options.keyJump.setDown(jumpDown);
@@ -142,13 +133,6 @@ public class Scaffold extends Module {
             ClientBase.delayPackets.clear();
         }
         super.onDisable();
-    }
-
-    private void processBatchedPackets(List<Packet<?>> batch) {
-        batch.forEach(packet -> {
-            batch.remove(packet);
-            PacketUtil.sendQueued((Packet<ServerGamePacketListener>) packet);
-        });
     }
 
     @EventTarget
@@ -210,7 +194,6 @@ public class Scaffold extends Module {
     @EventTarget(value = 1)
     public void onTick(TickEvent event) {
         if (mc.player == null) return;
-        this.packetBatches.add(new CopyOnWriteArrayList<>());
         if (this.velocityDelay > 0) this.velocityDelay--;
         if (mc.player.onGround() && this.velocityDelay <= 30) this.velocityDelay = 0;
 
@@ -606,7 +589,6 @@ public class Scaffold extends Module {
                 this.rots.setYawPitch(target.getYaw(), target.getPitch());
                 this.tickRotationSnapshot.setYawPitch(target.getYaw(), target.getPitch());
                 RotationHandler.setTargetRotation(this.rots);
-                ChatUtil.print("Corrected Rotation");
             }
         }
         if (this.interactBeforePlace.getValue()) {
@@ -684,6 +666,28 @@ public class Scaffold extends Module {
                         rotation.setPitch(75.5f);
                     } else {
                         rotation = RotationUtil.rotationFromVec(this.hitVecSource);
+
+                        if (this.smoothTelly.getValue()) {
+                            float limit = (float) (
+                                    180.0 / Math.max(
+                                            1.0,
+                                            this.rotationTick.getValue().doubleValue()
+                                    )
+                            );
+
+                            limit *= getDynamicLimitMultiplier();
+
+                            float delta = (float)
+                                    RotationUtil.angleDiffDouble(
+                                            rotation.getYaw(),
+                                            RotationHandler.prevRotation.getYaw()
+                                    );
+
+                            rotation.setYaw(
+                                    RotationHandler.prevRotation.getYaw()
+                                            + RotationUtil.clampAngle(delta, limit)
+                            );
+                        }
                     }
                     ReflectionUtil.setJumpDelay(2);
                     break;

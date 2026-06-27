@@ -125,6 +125,7 @@ public class ModuleManager extends ClientBase {
         this.register(new DamageGlow());
         this.register(new ESP());
         this.register(new EntityEditor());
+        this.register(new FakeAntiAim());
         this.register(new FullBright());
         this.register(new Interface());
         this.register(new ItemTags());

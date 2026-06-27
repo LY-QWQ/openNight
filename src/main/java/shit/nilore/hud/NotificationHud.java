@@ -45,7 +45,7 @@ public class NotificationHud extends HudElement {
     private static final int TEXT_COLOR = 0xFFFFFFFF;
 
     private final NumberSetting margin = new NumberSetting("Margin", 8.0f, 0.0f, 100.0f, 1.0f);
-    private final NumberSetting duration = new NumberSetting("Duration (ms)", 1600, 500, 10000, 100);
+    private final NumberSetting duration = new NumberSetting("Duration (ms)", 900, 500, 10000, 100);
     private final NumberSetting maxNotifications = new NumberSetting("Max Notifications", 7, 1, 10, 1);
 
     private final List<NotificationEntry> notifications = new ArrayList<>();
@@ -155,7 +155,7 @@ public class NotificationHud extends HudElement {
 
     private void renderCard(DrawContext drawContext, NotificationEntry entry,
                             float x, float y, float progress, float alpha) {
-        RoundedRectangle rect = RoundedRectangle.ofXYWHR(x, y, CARD_WIDTH, CARD_HEIGHT, CARD_RADIUS);
+        RoundedRectangle rect = RoundedRectangle.ofXYWHRadii(x, y, CARD_WIDTH, CARD_HEIGHT - 2f, new float[]{CARD_RADIUS, CARD_RADIUS, 0, 0});
 
         // Background
         try (Paint paint = new Paint()) {

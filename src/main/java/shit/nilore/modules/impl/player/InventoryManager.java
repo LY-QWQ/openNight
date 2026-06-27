@@ -117,7 +117,7 @@ extends Module {
 
     @EventTarget
     public void onSprint(SprintEvent sprintEvent) {
-        if (!this.inventoryOnlySetting.getValue() && GuiMove.INSTANCE.isEnabled() && (!this.pendingPackets.isEmpty() || isPerformingAction) && mc.player != null) {
+        if (!this.inventoryOnlySetting.getValue() && (!this.pendingPackets.isEmpty() || isPerformingAction) && mc.player != null) {
             mc.options.keySprint.setDown(false);
             mc.player.setSprinting(false);
         }
@@ -137,20 +137,21 @@ extends Module {
             this.didInventoryAction = false;
             this.sprintWaitTicks = 0;
         }
-        if (!GuiMove.INSTANCE.isEnabled()) {
-            if (!this.didInventoryAction) return;
-            if (this.inventoryOnlySetting.getValue() != false) return;
+        if (isPerformingAction && !this.inventoryOnlySetting.getValue() && !GuiMove.INSTANCE.isEnabled()) {
             if (packetEvent.getPacket() instanceof ServerboundMovePlayerPacket) {
                 if (!MovementUtil.isInputActive()) return;
                 mc.getConnection().send(new ServerboundContainerClosePacket(mc.player.inventoryMenu.containerId));
                 return;
-            } else {
-                if (!(packetEvent.getPacket() instanceof ServerboundUseItemOnPacket || packetEvent.getPacket() instanceof ServerboundUseItemPacket || packetEvent.getPacket() instanceof ServerboundInteractPacket)) {
-                    if (!(packetEvent.getPacket() instanceof ServerboundPlayerActionPacket)) return;
-                }
-                mc.getConnection().send(new ServerboundContainerClosePacket(mc.player.inventoryMenu.containerId));
             }
-        } else {
+            if (packetEvent.getPacket() instanceof ServerboundUseItemOnPacket
+                    || packetEvent.getPacket() instanceof ServerboundUseItemPacket
+                    || packetEvent.getPacket() instanceof ServerboundInteractPacket
+                    || packetEvent.getPacket() instanceof ServerboundPlayerActionPacket) {
+                mc.getConnection().send(new ServerboundContainerClosePacket(mc.player.inventoryMenu.containerId));
+                return;
+            }
+        }
+        {
             Screen screen;
             AbstractContainerScreen containerScreen;
             ServerboundPlayerCommandPacket commandPacket;
@@ -177,11 +178,7 @@ extends Module {
                     return;
                 }
             }
-            boolean shouldSkip = false;
-            if (shouldSkip) return;
-            if (!(packet instanceof ServerboundContainerClickPacket)) {
-                if (!(packet instanceof ServerboundContainerClosePacket)) return;
-            }
+            if (!(packet instanceof ServerboundContainerClickPacket) && !(packet instanceof ServerboundContainerClosePacket)) return;
             packetEvent.setCancelled(true);
             this.pendingPackets.add((Packet<ServerGamePacketListener>) packet);
         }
@@ -189,7 +186,7 @@ extends Module {
 
     @EventTarget
     public void onMotion(MotionEvent motionEvent) {
-        if (motionEvent.isPost() && !this.inventoryOnlySetting.getValue() && GuiMove.INSTANCE.isEnabled() && mc.player != null) {
+        if (motionEvent.isPost() && !this.inventoryOnlySetting.getValue() && mc.player != null) {
             boolean hasPendingPackets = !this.pendingPackets.isEmpty();
             if (hasPendingPackets) {
                 if (this.wasSprinting || mc.player.isSprinting()) {
@@ -205,14 +202,10 @@ extends Module {
                     PacketUtil.sendQueued((Packet<ServerGamePacketListener>) this.pendingPackets.poll());
                 }
                 PacketUtil.sendQueued(new ServerboundContainerClosePacket(mc.player.inventoryMenu.containerId));
-                boolean jumpDown = mc.options.keyJump.isDown();
-                boolean shiftDown = mc.options.keyShift.isDown();
                 this.justClosedInventory = true;
             } else {
                 this.sprintDelayTicks = 0;
                 if (this.justClosedInventory) {
-                    boolean jumpDown = mc.options.keyJump.isDown();
-                    boolean shiftDown = mc.options.keyShift.isDown();
                     this.justClosedInventory = false;
                 }
             }
@@ -284,7 +277,7 @@ extends Module {
             if (containerMenu instanceof FurnaceMenu || containerMenu instanceof BrewingStandMenu) {
                 isContainerOpen = true;
             }
-            if (isContainerOpen || ChestStealer.isRateLimited() || Scaffold.INSTANCE.isEnabled() || (this.inventoryOnlySetting.getValue() != false ? !(mc.screen instanceof InventoryScreen) : !GuiMove.INSTANCE.isEnabled() && this.idleTicks <= 1)) {
+            if (isContainerOpen || ChestStealer.isRateLimited() || Scaffold.INSTANCE.isEnabled() || (this.inventoryOnlySetting.getValue() != false ? !(mc.screen instanceof InventoryScreen) : false)) {
                 this.pendingOffhandPlace = false;
                 this.sprintWaitTicks = 0;
                 isPerformingAction = false;

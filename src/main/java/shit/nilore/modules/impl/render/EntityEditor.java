@@ -14,6 +14,7 @@ public class EntityEditor extends Module {
     private final BooleanSetting ignoreSelf = new BooleanSetting("Ignore Self", true);
     private final BooleanSetting betterItemView = new BooleanSetting("Better Item View", true,() -> this.allEntity.getValue());
     private final BooleanSetting allEntity = new BooleanSetting("AllEntity", false);
+    private final BooleanSetting excludeDrops = new BooleanSetting("Exclude Drops", true, () -> this.allEntity.getValue());
 
     public EntityEditor() {
         super("EntityEditor", Category.RENDER);
@@ -24,6 +25,7 @@ public class EntityEditor extends Module {
     public boolean getIgnoreSelf() { return ignoreSelf.getValue(); }
     public boolean getAllEntity() { return allEntity.getValue(); }
     public boolean getBetterItemView() {return betterItemView.getValue(); }
+    public boolean getExcludeDrops() { return excludeDrops.getValue(); }
 
     @Override
     protected void onDisable() {

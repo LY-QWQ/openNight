@@ -529,13 +529,14 @@ public class KillAura extends Module {
         }
         Vec3 vec3 = RotationUtil.closestPoint(mc.player.getEyePosition(), entity.getBoundingBox());
         double dist = vec3.distanceTo(mc.player.getEyePosition());
-        if (dist <= 2.9) {
-            // 已经在 2.9 格以内，不预测，直接通过
+        float aimRange = this.aimRange.getValue().floatValue();
+        if (dist <= aimRange) {
+            // 当前就在瞄准范围内，直接通过
         } else if (dist > 5.0) {
             return false;
-        } else if (dist > this.aimRange.getValue().floatValue()) {
+        } else {
             if (!(Boolean) this.predictionEnabled.getValue()
-                    || this.predictDistance(entity) >= 3.0) {
+                    || this.predictDistance(entity) >= aimRange) {
                 return false;
             }
         }
