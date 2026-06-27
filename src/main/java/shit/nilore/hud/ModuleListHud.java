@@ -60,8 +60,18 @@ public class ModuleListHud extends HudElement {
                 return;
             }
             this.targetVisible = visible;
-            this.progressAnim.animate(visible ? 1.0 : 0.0, visible ? 0.24 : 0.18,
-                    visible ? Easings.EASE_OUT_POW3 : Easings.EASE_IN_POW3);
+            double target = visible ? 1.0 : 0.0;
+            // Force reset if animation stuck
+            if (!visible && this.progressAnim.isAnimating()) {
+                this.progressAnim.setCurrentValue(this.progressAnim.getValueF());
+                this.progressAnim.setToValue(0.0);
+                this.progressAnim.setStartTime(System.currentTimeMillis());
+                this.progressAnim.setDuration(180.0);
+                this.progressAnim.setEasing(Easings.EASE_IN_POW3);
+            } else {
+                this.progressAnim.animate(target, visible ? 0.24 : 0.18,
+                        visible ? Easings.EASE_OUT_POW3 : Easings.EASE_IN_POW3);
+            }
         }
 
         private void tick() {
@@ -184,20 +194,20 @@ public class ModuleListHud extends HudElement {
         this.backgroundRadius = new NumberSetting("Background Radius", DEFAULT_RADIUS, 0.0f, 10.0f, 0.25f);
 
         // Side line settings
-        this.sideLineEnabled = new BooleanSetting("Side Line", true);
+        this.sideLineEnabled = new BooleanSetting("Side Line", false);
         this.sideLineMode = new ModeSetting("Side Line Mode", "Auto", "Auto", "Left", "Right").withDefault("Auto");
         this.sideLineWidth = new NumberSetting("Side Line Width", 0.8f, 0.5f, 5.0f, 0.25f);
 
         // Text color settings
-        this.useClientColor = new BooleanSetting("Use Client Color", true);
-        this.textColorMode = new ModeSetting("Text Color Mode", "Rainbow", "Rainbow", "Gradient", "Solid").withDefault("Rainbow");
+        this.useClientColor = new BooleanSetting("Use Client Color", false);
+        this.textColorMode = new ModeSetting("Text Color Mode", "Gradient", "Solid").withDefault("Gradient");
         this.gradientTheme = new ModeSetting("Gradient Theme", "Rainbow",
                 "Rainbow", "Aurora", "Sunset", "Ocean", "Cotton Candy", "Lavender", "Peach", "Mint", "Cyberpunk", "Drift")
-                .withDefault("Rainbow");
-        this.rainbowSpeed = new NumberSetting("Rainbow Speed", 60.0f, 1.0f, 240.0f, 1.0f);
-        this.rainbowSaturation = new NumberSetting("Rainbow Saturation", 80.0f, 0.0f, 100.0f, 1.0f);
+                .withDefault("Lavender");
+        this.rainbowSpeed = new NumberSetting("Rainbow Speed", 5.0f, 1.0f, 240.0f, 1.0f);
+        this.rainbowSaturation = new NumberSetting("Rainbow Saturation", 90.0f, 0.0f, 100.0f, 1.0f);
         this.rainbowBrightness = new NumberSetting("Rainbow Brightness", 100.0f, 10.0f, 100.0f, 1.0f);
-        this.rainbowOffset = new NumberSetting("Rainbow Offset", 15.0f, 0.0f, 90.0f, 1.0f);
+        this.rainbowOffset = new NumberSetting("Rainbow Offset", 85.0f, 0.0f, 90.0f, 1.0f);
 
         // Register all settings
         this.registerSetting(sideMode, breakEnabled, showSuffix, suffixColorEnabled, suffixLowercaseEnabled,
