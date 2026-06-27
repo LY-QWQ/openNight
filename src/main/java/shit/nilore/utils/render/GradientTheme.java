@@ -34,15 +34,13 @@ public enum GradientTheme {
     public float[][] getHSBColors() {
         return switch (this) {
             case RAINBOW -> new float[][] {
-                {0.00f, 0.85f, 1.0f},  // Red
-                {0.08f, 0.85f, 1.0f},  // Orange
-                {0.15f, 0.85f, 1.0f},  // Yellow
-                {0.33f, 0.85f, 1.0f},  // Green
-                {0.55f, 0.85f, 1.0f},  // Cyan
-                {0.67f, 0.85f, 1.0f},  // Blue
-                {0.78f, 0.85f, 1.0f},  // Purple
-                {0.92f, 0.85f, 1.0f},  // Pink
-                {1.00f, 0.85f, 1.0f},  // Back to Red
+                {0.00f, 0.50f, 1.0f},  // Red - original rainbow style
+                {0.17f, 0.50f, 1.0f},  // Yellow
+                {0.33f, 0.50f, 1.0f},  // Green
+                {0.50f, 0.50f, 1.0f},  // Cyan
+                {0.67f, 0.50f, 1.0f},  // Blue
+                {0.83f, 0.50f, 1.0f},  // Purple
+                {1.00f, 0.50f, 1.0f},  // Back to Red
             };
             case AURORA -> new float[][] {
                 {0.45f, 0.70f, 1.0f},  // Teal
