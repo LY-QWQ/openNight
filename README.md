@@ -43,7 +43,7 @@ OpenNiloreLoader.exe → 注入 OpenZen.dll 到 javaw.exe → JNI 调用 Agent_O
 
 ### 事件系统
 
-自定义事件总线 (`shit.nilore.event`)，支持优先级排序和事件取消。模块启用时自动注册 `@EventTarget` 方法，禁用时自动注销。
+自定义事件总线 (`client.nilore.event`)，支持优先级排序和事件取消。模块启用时自动注册 `@EventTarget` 方法，禁用时自动注销。
 
 ```java
 @EventTarget(priority = EventPriority.HIGH)
@@ -85,7 +85,7 @@ Open Nilore 支持两种交付形式：**Java Agent jar**（挂到 Minecraft JVM
 
 ### 编译时类名混淆（重要）
 
-每次构建，Open Nilore 会**自动把所有自有类(`shit.nilore.*` / `asm.patchify.*`)重命名为随机的 16 位名字**——包名和类名都随机，**每次构建都不一样**、互不重复，原始类名/包名一律不保留（连日志里残留的类名字符串也清理掉了）。引导链（Agent 入口、DLL 加载、`Class.forName`）会在构建时自动联动到新名字，无需手工处理。两种交付形式（jar / 注入器）都已混淆。
+每次构建，Open Nilore 会**自动把所有自有类(`client.nilore.*` / `asm.patchify.*`)重命名为随机的 16 位名字**——包名和类名都随机，**每次构建都不一样**、互不重复，原始类名/包名一律不保留（连日志里残留的类名字符串也清理掉了）。引导链（Agent 入口、DLL 加载、`Class.forName`）会在构建时自动联动到新名字，无需手工处理。两种交付形式（jar / 注入器）都已混淆。
 
 这是为了对抗按**类名黑名单**工作的反作弊（见下方[常见问题](#布吉岛反作弊绕过)）。正因为名字每次构建随机：
 
