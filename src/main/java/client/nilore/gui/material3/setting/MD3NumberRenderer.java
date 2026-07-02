@@ -23,28 +23,36 @@ public class MD3NumberRenderer implements MD3SettingRenderer {
     public int render(GuiGraphics gg, Setting<?> s, int x, int y, int w, int mx, int my, float alpha, float accent) {
         if (!(s instanceof NumberSetting ns)) return 0;
         int h = getHeight(s);
+        boolean rowHov = mx >= x && mx <= x + w && my >= y && my <= y + h;
+        boolean active = dragging.getOrDefault(ns, false);
 
-        // Label
-        FontRenderer lf = MD3Theme.fontBodyLarge(1f);
-        MD3Theme.text(ns.getName(), x + 2f, y + 4f, lf, MD3Theme.TEXT_HIGH, alpha);
+        float hc = hoverAnim.getOrDefault(ns, 0f);
+        hoverAnim.put(ns, LerpUtil.smoothLerp(hc, rowHov || active ? 1f : 0f, 0.2f));
+        float hv = hoverAnim.get(ns);
 
-        // Value text
-        FontRenderer vf = MD3Theme.fontTitleMedium(1f);
+        RenderUtil.drawRoundedRect(gg.pose(), x + 1f, y + 3f, w - 2f, h - 6f, 9f,
+                MD3Theme.withAlpha(MD3Theme.lerpColor(MD3Theme.SURFACE_DIM, MD3Theme.SURFACE_CONTAINER, hv), alpha * (0.68f + 0.18f * hv)));
+
+        FontRenderer lf = MD3Theme.fontBody(1f);
+        MD3Theme.text(ns.getName(), x + 10f, y + 8f, lf, MD3Theme.TEXT_MED, alpha);
+
+        FontRenderer vf = MD3Theme.fontLabel(1f);
         String val = formatVal(ns.getValue().doubleValue());
         float vw = GlHelper.getStringWidth(val, vf);
-        MD3Theme.text(val, x + w - vw - 2f, y + 4f, vf, (int)accent, alpha);
+        float chipW = vw + 12f, chipH = 15f;
+        float chipX = x + w - chipW - 9f, chipY = y + 6f;
+        RenderUtil.drawRoundedRect(gg.pose(), chipX, chipY, chipW, chipH, 5f,
+                MD3Theme.withAlpha(active ? (int)accent : MD3Theme.SURFACE_HIGHEST, alpha * (active ? 0.72f : 0.52f)));
+        MD3Theme.text(val, chipX + 6f, chipY + (chipH - vf.getMetrics().capHeight()) / 2f,
+                vf, active ? MD3Theme.ON_PRIMARY : (int)accent, alpha * 0.9f);
 
-        // Slider track
-        float trackY = y + h - 7f;
-        float trackH = 3f;
-        float trackX = x + 2f;
-        float trackW = w - 4f;
-
-        // Track bg
+        float trackY = y + h - 10f;
+        float trackH = 3.5f;
+        float trackX = x + 10f;
+        float trackW = w - 20f;
         RenderUtil.drawRoundedRect(gg.pose(), trackX, trackY, trackW, trackH, trackH / 2f,
-                MD3Theme.withAlpha(MD3Theme.SURFACE_HIGHEST, alpha));
+                MD3Theme.withAlpha(MD3Theme.SURFACE_HIGHEST, alpha * 0.58f));
 
-        // Filled portion
         double min = ns.getMin().doubleValue(), max = ns.getMax().doubleValue();
         double valD = ns.getValue().doubleValue();
         float fill = (float)((valD - min) / (max - min));
@@ -54,27 +62,18 @@ public class MD3NumberRenderer implements MD3SettingRenderer {
                     MD3Theme.withAlpha((int)accent, alpha));
         }
 
-        // Thumb (circle)
-        float thumbR = 5f;
+        float thumbR = 4.8f + 0.8f * hv;
         float thumbX = trackX + trackW * fill;
         float thumbY = trackY + trackH / 2f;
-        boolean hov = dragging.getOrDefault(ns, false) ||
-                (mx >= thumbX - thumbR - 2 && mx <= thumbX + thumbR + 2 && my >= thumbY - thumbR - 2 && my <= thumbY + thumbR + 2);
-        float hc = hoverAnim.getOrDefault(ns, 0f);
-        hoverAnim.put(ns, LerpUtil.smoothLerp(hc, hov ? 1f : 0f, 0.2f));
-        float hv = hoverAnim.get(ns);
-
-        // Thumb glow
-        if (hv > 0.01f) {
-            float glowR = thumbR + 3f * hv;
-            RenderUtil.drawRoundedRect(gg.pose(), thumbX - glowR, thumbY - glowR,
-                    glowR * 2, glowR * 2, glowR,
-                    MD3Theme.withAlpha((int)accent, alpha * hv * 0.2f));
+        if (active || hv > 0.01f) {
+            float halo = thumbR + 3f;
+            RenderUtil.drawRoundedRect(gg.pose(), thumbX - halo, thumbY - halo,
+                    halo * 2f, halo * 2f, halo,
+                    MD3Theme.withAlpha((int)accent, alpha * (active ? 0.16f : 0.08f * hv)));
         }
-        // Thumb body
         RenderUtil.drawRoundedRect(gg.pose(), thumbX - thumbR, thumbY - thumbR,
-                thumbR * 2, thumbR * 2, thumbR,
-                MD3Theme.withAlpha((int)accent, alpha));
+                thumbR * 2f, thumbR * 2f, thumbR,
+                MD3Theme.withAlpha((int)accent, alpha * 0.92f));
 
         return h;
     }
@@ -83,10 +82,9 @@ public class MD3NumberRenderer implements MD3SettingRenderer {
     public boolean onClick(Setting<?> s, int x, int y, int w, int mx, int my, int btn, float scale) {
         if (!(s instanceof NumberSetting ns) || btn != 0) return false;
         int h = getHeight(s);
-        float trackX = x + 2f, trackW = w - 4f;
-        float trackY = y + h - 7f;
-        // Click on track area
-        if (mx >= trackX && mx <= trackX + trackW && my >= trackY - 4 && my <= trackY + 10) {
+        float trackX = x + 10f, trackW = w - 20f;
+        float trackY = y + h - 15f;
+        if (mx >= x && mx <= x + w && my >= y && my <= y + h) {
             float ratio = Math.max(0f, Math.min(1f, (mx - trackX) / trackW));
             double min = ns.getMin().doubleValue(), max = ns.getMax().doubleValue();
             double step = ns.getStep().doubleValue();
@@ -134,5 +132,5 @@ public class MD3NumberRenderer implements MD3SettingRenderer {
     }
 
     @Override public boolean supports(Setting<?> s) { return s instanceof NumberSetting; }
-    @Override public int getHeight(Setting<?> s) { return 32; }
+    @Override public int getHeight(Setting<?> s) { return 34; }
 }

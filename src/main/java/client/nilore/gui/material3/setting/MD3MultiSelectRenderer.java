@@ -13,7 +13,7 @@ import client.nilore.utils.render.RenderUtil;
 
 public class MD3MultiSelectRenderer implements MD3SettingRenderer {
 
-    private static final int ROW = 22;
+    private static final int ROW = 26;
     private final Map<String, Float> checkAnim = new HashMap<>();
     private final Map<String, Float> hoverAnim = new HashMap<>();
 
@@ -21,18 +21,16 @@ public class MD3MultiSelectRenderer implements MD3SettingRenderer {
     public int render(GuiGraphics gg, Setting<?> s, int x, int y, int w, int mx, int my, float alpha, float accent) {
         if (!(s instanceof MultiSelectSetting ms)) return 0;
 
-        // Label
-        FontRenderer lf = MD3Theme.fontBodyLarge(1f);
-        MD3Theme.text(ms.getName(), x + 2f, y + 3f, lf, MD3Theme.TEXT_HIGH, alpha);
+        FontRenderer lf = MD3Theme.fontBody(0.92f);
+        MD3Theme.text(ms.getName(), x + 10f, y + 7f, lf, MD3Theme.TEXT_MED, alpha);
 
         int ry = y + ROW;
-        float boxSize = 12f;
+        float boxSize = 14f;
 
         for (String opt : ms.getOptions()) {
             boolean sel = ms.isSelected(opt);
             boolean hov = mx >= x && mx <= x + w && my >= ry && my <= ry + ROW;
 
-            // Animate
             float cc = checkAnim.getOrDefault(opt, 0f);
             checkAnim.put(opt, LerpUtil.smoothLerp(cc, sel ? 1f : 0f, 0.2f));
             float cv = checkAnim.get(opt);
@@ -41,38 +39,33 @@ public class MD3MultiSelectRenderer implements MD3SettingRenderer {
             hoverAnim.put(opt, LerpUtil.smoothLerp(hc, hov ? 1f : 0f, 0.18f));
             float hv = hoverAnim.get(opt);
 
-            // Checkbox
-            float bx = x + w - boxSize - 6f;
-            float by = ry + (ROW - boxSize) / 2f;
+            int row = MD3Theme.lerpColor(MD3Theme.SURFACE_DIM, MD3Theme.SURFACE_CONTAINER, hv);
+            row = MD3Theme.lerpColor(row, (int)accent, cv * 0.1f);
+            RenderUtil.drawRoundedRect(gg.pose(), x + 1f, ry + 3f, w - 2f, ROW - 6f, 8f,
+                    MD3Theme.withAlpha(row, alpha * (0.58f + 0.14f * hv + 0.08f * cv)));
 
-            // Checked fill
-            if (cv > 0.01f) {
-                RenderUtil.drawRoundedRect(gg.pose(), bx, by, boxSize, boxSize, 3f,
-                        MD3Theme.withAlpha((int)accent, alpha * cv));
-                // Checkmark (simplified as inner square)
-                float inset = (1f - cv) * boxSize * 0.3f;
-                RenderUtil.drawRoundedRect(gg.pose(), bx + inset + 2f, by + inset + 2f,
-                        boxSize - inset * 2f - 4f, boxSize - inset * 2f - 4f, 1.5f,
-                        MD3Theme.withAlpha(MD3Theme.SURFACE, alpha * cv));
-            } else {
-                // Unchecked border
-                RenderUtil.drawRoundedRect(gg.pose(), bx, by, boxSize, boxSize, 3f,
-                        MD3Theme.withAlpha(MD3Theme.OUTLINE, alpha));
-            }
-
-            // Hover ripple
-            if (hv > 0.01f) {
-                float rSize = boxSize + 6f * hv;
-                RenderUtil.drawRoundedRect(gg.pose(), bx - 3f * hv, by - 3f * hv,
-                        rSize, rSize, rSize / 2f,
-                        MD3Theme.withAlpha(MD3Theme.SURFACE_HIGH, alpha * hv * 0.4f));
-            }
-
-            // Option label
             FontRenderer of2 = MD3Theme.fontBody(1f);
-            int tc = sel ? MD3Theme.TEXT_HIGH : (int)LerpUtil.lerp(MD3Theme.TEXT_LOW, MD3Theme.TEXT_MED, hv);
+            int tc = sel ? MD3Theme.TEXT_HIGH : MD3Theme.lerpColor(MD3Theme.TEXT_LOW, MD3Theme.TEXT_MED, hv);
             float oly = ry + (ROW - of2.getMetrics().capHeight()) / 2f;
-            MD3Theme.text(opt, x + 8f, oly, of2, tc, alpha);
+            MD3Theme.text(opt, x + 12f, oly, of2, tc, alpha);
+
+            float bx = x + w - boxSize - 10f;
+            float by = ry + (ROW - boxSize) / 2f;
+            if (hv > 0.01f) {
+                float r = boxSize + 5f * hv;
+                RenderUtil.drawRoundedRect(gg.pose(), bx - (r - boxSize) / 2f, by - (r - boxSize) / 2f,
+                        r, r, r / 2f, MD3Theme.withAlpha((int)accent, alpha * hv * 0.16f));
+            }
+            int box = MD3Theme.lerpColor(MD3Theme.SURFACE_HIGHEST, (int)accent, cv);
+            RenderUtil.drawRoundedRect(gg.pose(), bx, by, boxSize, boxSize, 4f,
+                    MD3Theme.withAlpha(box, alpha * 0.9f));
+            RenderUtil.drawRoundedRect(gg.pose(), bx + 1f, by + 1f, boxSize - 2f, boxSize - 2f, 3f,
+                    MD3Theme.withAlpha(sel ? MD3Theme.argb(24, 255, 255, 255) : MD3Theme.OUTLINE_VARIANT, alpha * (sel ? cv : 0.7f)));
+            if (cv > 0.35f) {
+                FontRenderer iconF = MD3Theme.fontMaterial(11f);
+                GlHelper.drawText("", bx + 3f, by + (boxSize - iconF.getMetrics().capHeight()) / 2f + 1.5f,
+                        iconF, MD3Theme.withAlpha(MD3Theme.ON_PRIMARY, alpha * cv));
+            }
 
             ry += ROW;
         }

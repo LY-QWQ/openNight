@@ -48,6 +48,7 @@ import client.nilore.event.impl.PacketEvent;
 import client.nilore.event.impl.SprintEvent;
 import client.nilore.modules.Category;
 import client.nilore.modules.Module;
+import client.nilore.modules.impl.combat.KillAura;
 import client.nilore.modules.impl.movement.GuiMove;
 import client.nilore.modules.impl.movement.Scaffold;
 import client.nilore.settings.impl.BooleanSetting;
@@ -68,8 +69,8 @@ extends Module {
     private final NumberSetting dropDelaySetting = new NumberSetting("Drop Delay", 40, 0, 500, 10);
     private final BooleanSetting autoArmorSetting = new BooleanSetting("Auto Armor", true);
     private final BooleanSetting throwItemsSetting = new BooleanSetting("Throw Items", true);
-    private final ModeSetting offhandItemSetting = new ModeSetting("Offhand Items", "Golden Apple", "Fishing Rod", "None").withDefault("None");
-    private final ModeSetting bowPrioritySetting = new ModeSetting("Bow Priority", "Crossbow", "Punch Bow").withDefault("Crossbow");
+    private final ModeSetting offhandItemSetting = new ModeSetting("Offhand Items", "None", "Golden Apple", "Projectile", "Fishing Rod", "Block").withDefault("None");
+    private final ModeSetting bowPrioritySetting = new ModeSetting("Bow Priority", "Crossbow", "Power Bow", "Punch Bow").withDefault("Power Bow");
     private final BooleanSetting inventoryOnlySetting = new BooleanSetting("Inventory Only", true);
     private final BooleanSetting fastThrowSetting = new BooleanSetting("Fast Throw", true);
     private final NumberSetting maxEggsSnowballsSetting = new NumberSetting("Max Eggs & Snowballs Size", 64, 16, 256, 16);
@@ -259,6 +260,16 @@ extends Module {
                 this.skipNextTick = true;
                 return;
             }
+
+            // Scaffold 或 KillAura 正在执行动作时，不整理、不停止疾跑
+            if (this.shouldPauseForAction()) {
+                isPerformingAction = false;
+                this.skipNextTick = true;
+                this.pendingOffhandPlace = false;
+                this.sprintWaitTicks = 0;
+                return;
+            }
+
             this.idleTicks = MovementUtil.isInputActive() ? 0 : ++this.idleTicks;
             boolean isContainerOpen = false;
             AbstractContainerMenu containerMenu = mc.player.containerMenu;
@@ -349,7 +360,7 @@ extends Module {
             int blockSlot = this.blockSlotSetting.getValue().intValue() - 1;
             ItemStack currentBlock = mc.player.getInventory().items.get(blockSlot);
             ItemStack bestBlock = ItemUtil.getBestBlock();
-            if (!(bestBlock == null || bestBlock.getCount() <= currentBlock.getCount() && BlockUtil.isPlaceable(currentBlock) || this.offhandItemSetting.getValue().equals("Block") || !this.swapToSlot(blockSlot, bestBlock))) {
+            if (!(bestBlock == null || BlockUtil.isPlaceable(currentBlock) || this.offhandItemSetting.getValue().equals("Block") || !this.swapToSlot(blockSlot, bestBlock))) {
                 return true;
             }
         }
@@ -528,12 +539,7 @@ extends Module {
             return false;
         }
         int slot = ItemUtil.getSlot(bestProjectile);
-        boolean shouldSwap;
-        if (offhand.getItem() == Items.EGG || offhand.getItem() == Items.SNOWBALL) {
-            shouldSwap = offhand.getCount() < bestProjectile.getCount();
-        } else {
-            shouldSwap = true;
-        }
+        boolean shouldSwap = offhand.getItem() != Items.EGG && offhand.getItem() != Items.SNOWBALL;
         if (!shouldSwap || slot == -1 || !actionTimer.hasPassed(this.actionDelaySetting.getValue().intValue())) {
             return false;
         }
@@ -559,12 +565,7 @@ extends Module {
             return false;
         }
         int slot = ItemUtil.getSlot(bestBlock);
-        boolean shouldSwap;
-        if (BlockUtil.isPlaceable(offhand)) {
-            shouldSwap = offhand.getCount() < bestBlock.getCount();
-        } else {
-            shouldSwap = true;
-        }
+        boolean shouldSwap = !BlockUtil.isPlaceable(offhand);
         if (!shouldSwap || slot == -1 || !actionTimer.hasPassed(this.actionDelaySetting.getValue().intValue())) {
             return false;
         }
@@ -629,8 +630,7 @@ extends Module {
         }
         ItemStack currentStack = mc.player.getInventory().items.get(targetSlot);
         if (ItemUtil.isUsable(currentStack) && actionTimer.hasPassed(this.actionDelaySetting.getValue().intValue()) && (sourceSlot = ItemUtil.getSlot(item)) != -1) {
-            ItemStack sourceStack = mc.player.getInventory().items.get(sourceSlot);
-            if (currentStack.getItem() != item || currentStack.getItem() == item && currentStack.getCount() < sourceStack.getCount()) {
+            if (currentStack.getItem() != item) {
                 if (sourceSlot < 9) {
                     mc.gameMode.handleInventoryMouseClick(mc.player.inventoryMenu.containerId, sourceSlot + 36, targetSlot, ClickType.SWAP, mc.player);
                 } else {
@@ -727,6 +727,12 @@ extends Module {
             return false;
         }
         return ItemUtil.isUsableItem(itemStack);
+    }
+
+    private boolean shouldPauseForAction() {
+        if (Scaffold.INSTANCE != null && Scaffold.INSTANCE.isEnabled()) return true;
+        if (KillAura.INSTANCE != null && KillAura.INSTANCE.isEnabled() && KillAura.target != null) return true;
+        return false;
     }
 
     static {

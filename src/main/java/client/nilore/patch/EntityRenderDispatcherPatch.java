@@ -7,6 +7,7 @@ import com.mojang.math.Axis;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.entity.ExperienceOrb;
@@ -107,16 +108,15 @@ public class EntityRenderDispatcherPatch {
                             }
                         }
 
+                        float[] savedHead = NO_HEAD_SAVE;
                         if (entity == mc.player && FakeAntiAim.INSTANCE != null && FakeAntiAim.INSTANCE.isEnabled()) {
-                            poseStack.translate(x, y, z);
-                            int spinSpeed = FakeAntiAim.INSTANCE.spinSpeed.getValue().intValue();
-                            float currentSpin = (entity.tickCount + partialTick) * spinSpeed;
-                            poseStack.mulPose(Axis.YP.rotationDegrees(currentSpin));
-                            poseStack.translate(-x, -y, -z);
-                            yaw += currentSpin;
+                            savedHead = new float[4];
+                            float time = entity.tickCount + partialTick;
+                            yaw = applyFakeAntiAim(FakeAntiAim.INSTANCE, fake, poseStack, x, y, z, time, entity.tickCount, yaw, savedHead);
                         }
 
                         dispatcher.render(fake, x, y, z, yaw, partialTick, poseStack, buffer, light);
+                        restoreHead(fake, savedHead);
                         poseStack.popPose();
                     } catch (Exception ignored) {
                     } finally {
@@ -134,19 +134,68 @@ public class EntityRenderDispatcherPatch {
             try {
                 poseStack.pushPose();
 
-                poseStack.translate(x, y, z);
-                int spinSpeed = FakeAntiAim.INSTANCE.spinSpeed.getValue().intValue();
-                float currentSpin = (entity.tickCount + partialTick) * spinSpeed;
-                poseStack.mulPose(Axis.YP.rotationDegrees(currentSpin));
-                poseStack.translate(-x, -y, -z);
+                float[] savedHead = new float[4];
+                float time = entity.tickCount + partialTick;
+                float bodyYaw = applyFakeAntiAim(FakeAntiAim.INSTANCE, entity, poseStack, x, y, z, time, entity.tickCount, yaw, savedHead);
 
-                dispatcher.render(entity, x, y, z, yaw + currentSpin, partialTick, poseStack, buffer, light);
+                dispatcher.render(entity, x, y, z, bodyYaw, partialTick, poseStack, buffer, light);
+                restoreHead(entity, savedHead);
 
                 poseStack.popPose();
             } catch (Exception ignored) {
             } finally {
                 IS_RENDERING_FAKE.set(false);
             }
+        }
+    }
+
+    private static final float[] NO_HEAD_SAVE = new float[0];
+
+    private static float applyFakeAntiAim(
+            FakeAntiAim faa, Entity rendered,
+            com.mojang.blaze3d.vertex.PoseStack poseStack,
+            double x, double y, double z, float time, int tick, float baseYaw, float[] savedHead) {
+
+        float yawAngle = faa.entityYawAngle(time, tick);
+        float pitchAngle = faa.entityPitchAngle(time, tick);
+
+        if (yawAngle != 0.0f || pitchAngle != 0.0f) {
+            poseStack.translate(x, y, z);
+            if (yawAngle != 0.0f) poseStack.mulPose(Axis.YP.rotationDegrees(yawAngle));
+            if (pitchAngle != 0.0f) poseStack.mulPose(Axis.XP.rotationDegrees(pitchAngle));
+            poseStack.translate(-x, -y, -z);
+        }
+
+        savedHead[0] = Float.NaN;
+        boolean isRealPlayer = rendered == Minecraft.getInstance().player;
+        boolean headYaw = !isRealPlayer && faa.headYawActive();
+        boolean headPitch = !isRealPlayer && faa.headPitchActive();
+        if ((headYaw || headPitch) && rendered instanceof LivingEntity le) {
+            savedHead[0] = le.yHeadRot;
+            savedHead[1] = le.yHeadRotO;
+            savedHead[2] = le.getXRot();
+            savedHead[3] = le.xRotO;
+            if (headYaw) {
+                float a = faa.headYawOffset(time, tick);
+                le.yHeadRot += a;
+                le.yHeadRotO += a;
+            }
+            if (headPitch) {
+                float a = faa.headPitchOffset(time, tick);
+                le.setXRot(a);
+                le.xRotO = a;
+            }
+        }
+
+        return baseYaw + yawAngle;
+    }
+
+    private static void restoreHead(Entity rendered, float[] savedHead) {
+        if (savedHead.length == 4 && !Float.isNaN(savedHead[0]) && rendered instanceof LivingEntity le) {
+            le.yHeadRot = savedHead[0];
+            le.yHeadRotO = savedHead[1];
+            le.setXRot(savedHead[2]);
+            le.xRotO = savedHead[3];
         }
     }
 }

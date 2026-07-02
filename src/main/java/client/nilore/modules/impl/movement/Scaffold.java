@@ -70,10 +70,12 @@ public class Scaffold extends Module {
     public Rotation lastRots = new Rotation();
     public int targetYLevel = -1;
     public int velocityDelay = 0;
+    public boolean wantsRotation = false;
 
     private int oldSlot;
     private PlacementTarget currentPlacement;
     private Vec3 hitVecSource;
+    private BlockPos lastPlacedBlock;
     private int eagleTimer;
     private int groundTicks = 0;
     private int airTicks = 0;
@@ -102,6 +104,7 @@ public class Scaffold extends Module {
             this.lastRots.setYawPitch(mc.player.yRotO - 180.0f, mc.player.xRotO);
             this.currentPlacement = null;
             this.hitVecSource = null;
+            this.lastPlacedBlock = null;
             this.targetYLevel = 10000;
             this.velocityDelay = 0;
             this.jitterCounter = 0;
@@ -112,6 +115,8 @@ public class Scaffold extends Module {
             this.tickRotationSnapshot = new Rotation();
             this.canBuildNow = true;
             this.needsLookAdjustment = false;
+            this.wantsRotation = false;
+
             this.jumpHeld = false;
         }
         super.onEnable();
@@ -129,6 +134,8 @@ public class Scaffold extends Module {
             this.canBuildNow = true;
             this.needsLookAdjustment = false;
             this.hitVecSource = null;
+            this.lastPlacedBlock = null;
+            this.wantsRotation = false;
             this.jumpHeld = false;
             ClientBase.delayPackets.clear();
         }
@@ -209,6 +216,19 @@ public class Scaffold extends Module {
             mc.player.getInventory().selected = placeableSlot;
         }
 
+        if (placeableSlot == -1) {
+            this.currentPlacement = null;
+            this.hitVecSource = null;
+            this.lastPlacedBlock = null;
+            this.eagleTimer = 0;
+            this.wantsRotation = false;
+            ClientBase.delayPackets.clear();
+            mc.options.keyJump.setDown(InputConstants.isKeyDown(mc.getWindow().getWindow(), mc.options.keyJump.getKey().getValue()));
+            mc.options.keyShift.setDown(InputConstants.isKeyDown(mc.getWindow().getWindow(), mc.options.keyShift.getKey().getValue()));
+            mc.options.keyUse.setDown(false);
+            return;
+        }
+
         this.jumpHeld = InputConstants.isKeyDown(mc.getWindow().getWindow(), mc.options.keyJump.getKey().getValue());
         if (this.targetYLevel == -1
                 || this.targetYLevel > (int) Math.floor(mc.player.getY()) - 1
@@ -224,10 +244,11 @@ public class Scaffold extends Module {
         if (this.currentPlacement != null) {
             this.updateLookAtStatus();
         }
+        this.wantsRotation = this.currentPlacement != null;
 
         boolean firstGroundTick = false;
         this.canBuildNow = true;
-        if (this.currentPlacement != null && placeableSlot != -1) {
+        if (this.currentPlacement != null) {
             if (this.groundTicks == 1 && mc.options.keyJump.isDown()) {
                 firstGroundTick = true;
             }
@@ -464,48 +485,73 @@ public class Scaffold extends Module {
         int feetX = belowFeet.getX();
         int feetZ = belowFeet.getZ();
         if (mc.level.getBlockState(belowFeet).entityCanStandOn(mc.level, belowFeet, mc.player)) return;
-        if (this.isAbovePlaceable(eye, belowFeet)) return;
-        for (int radius = 1; radius <= 6; radius++) {
-            if (this.isAbovePlaceable(eye, new BlockPos(feetX, this.targetYLevel - radius, feetZ))) return;
-            for (int x = 1; x <= radius; x++) {
-                for (int z = 0; z <= radius - x; z++) {
-                    int yOff = radius - x - z;
-                    for (int signX = 0; signX <= 1; signX++) {
-                        for (int signZ = 0; signZ <= 1; signZ++) {
+
+        PlacementCandidate best = null;
+        for (int radius = 0; radius <= 5; radius++) {
+            for (int yOff = 0; yOff <= radius; yOff++) {
+                int xySum = radius - yOff;
+                for (int x = 0; x <= xySum; x++) {
+                    int z = xySum - x;
+                    for (int signX = 0; signX <= (x == 0 ? 0 : 1); signX++) {
+                        for (int signZ = 0; signZ <= (z == 0 ? 0 : 1); signZ++) {
                             BlockPos test = new BlockPos(
                                     feetX + (signX == 0 ? x : -x),
                                     this.targetYLevel - yOff,
                                     feetZ + (signZ == 0 ? z : -z));
-                            if (this.isAbovePlaceable(eye, test)) return;
+                            PlacementCandidate candidate = this.evaluatePlacement(eye, test, feetX, feetZ);
+                            if (candidate != null && (best == null || candidate.score() > best.score())) {
+                                best = candidate;
+                            }
                         }
                     }
                 }
             }
         }
+        if (best != null) {
+            this.currentPlacement = new PlacementTarget(best.position(), best.facing());
+            this.hitVecSource = getHitVec(best.position(), best.facing());
+        }
     }
 
-    private boolean isAbovePlaceable(Vec3 from, BlockPos pos) {
-        if (mc.level == null || mc.player == null) return false;
-        if (!mc.level.getBlockState(pos).canBeReplaced()) return false;
+    private PlacementCandidate evaluatePlacement(Vec3 from, BlockPos pos, int feetX, int feetZ) {
+        if (mc.level == null || mc.player == null) return null;
+        if (!mc.level.getBlockState(pos).canBeReplaced()) return null;
         Vec3 center = new Vec3(pos.getX() + 0.5, pos.getY() + 0.5f, pos.getZ() + 0.5);
+        PlacementCandidate best = null;
         for (Direction direction : Direction.values()) {
             Vec3 offsetCenter = center.add(new Vec3(
                     direction.getNormal().getX() * 0.5,
                     direction.getNormal().getY() * 0.5,
                     direction.getNormal().getZ() * 0.5));
-            BlockPos offset = pos.offset(direction.getNormal());
-            if (mc.level.getBlockState(offset).entityCanStandOnFace(mc.level, offset, mc.player, direction)) {
-                Vec3 delta = offsetCenter.subtract(from);
-                if (delta.lengthSqr() <= 20.25
-                        && delta.normalize().dot(Vec3.atLowerCornerOf(direction.getNormal()).normalize()) >= 0.0) {
-                    this.currentPlacement = new PlacementTarget(new BlockPos(offset.getX(), offset.getY(), offset.getZ()), direction.getOpposite());
-
-                    this.hitVecSource = getHitVec(this.currentPlacement.position, this.currentPlacement.facing);
-                    return true;
-                }
+            BlockPos support = pos.offset(direction.getNormal());
+            if (!mc.level.getBlockState(support).entityCanStandOnFace(mc.level, support, mc.player, direction)) continue;
+            Vec3 delta = offsetCenter.subtract(from);
+            if (delta.lengthSqr() > 25.0) continue;
+            double dot = delta.normalize().dot(Vec3.atLowerCornerOf(direction.getNormal()).normalize());
+            if (dot < 0.0) continue;
+            double score = this.scorePlacement(pos, support, direction.getOpposite(), feetX, feetZ, dot);
+            if (best == null || score > best.score()) {
+                best = new PlacementCandidate(
+                        new BlockPos(support.getX(), support.getY(), support.getZ()),
+                        direction.getOpposite(),
+                        score);
             }
         }
-        return false;
+        return best;
+    }
+
+    private double scorePlacement(BlockPos pos, BlockPos support, Direction facing, int feetX, int feetZ, double dot) {
+        int dx = Math.abs(pos.getX() - feetX);
+        int dz = Math.abs(pos.getZ() - feetZ);
+        int dy = Math.max(0, this.targetYLevel - pos.getY());
+        double score = -(dx + dz + dy) + dot * 0.25;
+        if (support.equals(this.lastPlacedBlock)) {
+            score += 1.5D;
+        }
+        if (facing == Direction.DOWN) {
+            score -= 100D;
+        }
+        return score;
     }
 
     private boolean shouldBuild() {
@@ -597,6 +643,7 @@ public class Scaffold extends Module {
         InteractionResult result = mc.gameMode.useItemOn(mc.player, InteractionHand.MAIN_HAND, hit);
         if (result == InteractionResult.SUCCESS) {
             mc.player.swing(InteractionHand.MAIN_HAND);
+            this.lastPlacedBlock = targetBuildPos;
         }
     }
 
@@ -801,5 +848,8 @@ public class Scaffold extends Module {
     }
 
     private record PlacementTarget(BlockPos position, Direction facing) {
+    }
+
+    private record PlacementCandidate(BlockPos position, Direction facing, double score) {
     }
 }

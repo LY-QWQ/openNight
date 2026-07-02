@@ -9,44 +9,44 @@ import client.nilore.render.GlHelper;
 
 public final class MD3Theme {
 
-    // ── Surface (dark purple, lighter) ──
-    public static final int SCRIM             = 0xCC12101C;
-    public static final int SURFACE           = 0xFF1E1A2E;
-    public static final int SURFACE_DIM       = 0xFF221E34;
-    public static final int SIDEBAR           = 0xFF262040;
-    public static final int SURFACE_CONTAINER = 0xFF2C2648;
-    public static final int SURFACE_HIGH      = 0xFF362F56;
-    public static final int SURFACE_HIGHEST   = 0xFF423A66;
+    // ── Surface (dark neutral) ──
+    public static final int SCRIM             = 0xCC090B10;
+    public static final int SURFACE           = 0xFF101318;
+    public static final int SURFACE_DIM       = 0xFF151A20;
+    public static final int SIDEBAR           = 0xFF171D24;
+    public static final int SURFACE_CONTAINER = 0xFF1D232C;
+    public static final int SURFACE_HIGH      = 0xFF242B35;
+    public static final int SURFACE_HIGHEST   = 0xFF2D3541;
 
-    // ── Primary (light purple / violet) ──
-    public static final int PRIMARY           = 0xFFD0BCFF;
-    public static final int PRIMARY_CONTAINER = 0xFF4A3880;
-    public static final int ON_PRIMARY        = 0xFF381E72;
+    // ── Primary (calm cyan-blue) ──
+    public static final int PRIMARY           = 0xFF88C7FF;
+    public static final int PRIMARY_CONTAINER = 0xFF1F3A52;
+    public static final int ON_PRIMARY        = 0xFF071521;
 
-    // ── Secondary (muted purple) ──
-    public static final int SECONDARY         = 0xFFCCC2DC;
-    public static final int SECONDARY_CONTAINER = 0xFF4A4458;
+    // ── Secondary (muted blue-gray) ──
+    public static final int SECONDARY         = 0xFFC1D3E8;
+    public static final int SECONDARY_CONTAINER = 0xFF2A3440;
 
     // ── Text ──
-    public static final int TEXT_HIGH         = 0xFFF4EFFA;
-    public static final int TEXT_MED          = 0xFFCAC4D6;
-    public static final int TEXT_LOW          = 0xFF938F9E;
-    public static final int TEXT_DISABLED     = 0xFF5C586A;
+    public static final int TEXT_HIGH         = 0xFFF2F5F8;
+    public static final int TEXT_MED          = 0xFFCBD3DC;
+    public static final int TEXT_LOW          = 0xFF8F98A3;
+    public static final int TEXT_DISABLED     = 0xFF5A6470;
 
     // ── Outline ──
-    public static final int OUTLINE           = 0xFF494558;
-    public static final int OUTLINE_VARIANT   = 0xFF3B384C;
+    public static final int OUTLINE           = 0xFF33404D;
+    public static final int OUTLINE_VARIANT   = 0xFF27313C;
 
     // ── Category [primary, container] ──
     private static final Map<Category, int[]> CAT = new HashMap<>();
     static {
-        CAT.put(Category.COMBAT,   new int[]{0xFFE8B4FF, 0xFF3A1858});
-        CAT.put(Category.MOVEMENT, new int[]{0xFFD0BCFF, 0xFF302060});
-        CAT.put(Category.PLAYER,   new int[]{0xFFCFBCFF, 0xFF2E1A58});
-        CAT.put(Category.RENDER,   new int[]{0xFFE0C8FF, 0xFF342068});
-        CAT.put(Category.EXPLOIT,  new int[]{0xFFC8AAFF, 0xFF2A1450});
-        CAT.put(Category.WORLD,    new int[]{0xFFD4C0FF, 0xFF321C5A});
-        CAT.put(Category.MISC,     new int[]{0xFFC0A8E8, 0xFF281848});
+        CAT.put(Category.COMBAT,   new int[]{0xFFFF8A80, 0xFF4A2322});
+        CAT.put(Category.MOVEMENT, new int[]{0xFF8BE7FF, 0xFF1D4450});
+        CAT.put(Category.PLAYER,   new int[]{0xFF9BE7B9, 0xFF23402F});
+        CAT.put(Category.RENDER,   new int[]{0xFFB6A3FF, 0xFF332E57});
+        CAT.put(Category.EXPLOIT,  new int[]{0xFFFFC96E, 0xFF4A3820});
+        CAT.put(Category.WORLD,    new int[]{0xFF8EE6D4, 0xFF22423E});
+        CAT.put(Category.MISC,     new int[]{0xFFB7C4D6, 0xFF28303A});
     }
 
     // Material Icons

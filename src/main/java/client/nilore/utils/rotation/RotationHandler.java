@@ -23,6 +23,7 @@ import client.nilore.modules.impl.combat.CrystalAura;
 import client.nilore.modules.impl.combat.KillAura;
 import client.nilore.modules.impl.movement.FireballBlink;
 import client.nilore.modules.impl.movement.Scaffold;
+import client.nilore.modules.impl.render.FakeAntiAim;
 import client.nilore.modules.impl.player.AntiTNT;
 import client.nilore.modules.impl.player.AntiWeb;
 import client.nilore.modules.impl.player.AutoMLG;
@@ -115,7 +116,7 @@ extends ClientBase {
                 RotationHandler.setTargetRotation(AutoWebPlace.targetRotation);
             } else if (autoThrow != null && autoThrow.isEnabled() && autoThrow.targetRotation != null) {
                 RotationHandler.setTargetRotation(autoThrow.targetRotation);
-            } else if (scaffold != null && scaffold.isEnabled() && scaffold.rots != null) {
+            } else if (scaffold != null && scaffold.isEnabled() && scaffold.rots != null && scaffold.wantsRotation) {
                 RotationHandler.setTargetRotation(scaffold.rots);
             } else if (killAura != null && killAura.isEnabled() && KillAura.target != null && killAura.rotation != null) {
                 RotationHandler.setTargetRotation(new Rotation(killAura.rotation.getYaw(), killAura.rotation.getPitch()));
@@ -131,6 +132,7 @@ extends ClientBase {
 
     @EventTarget
     public void onHeadTurn(RotationAnimationEvent e) {
+        if (isFakeAntiAimOverriding()) return;
         if (sentRotation != null && prevSentRotation != null && mc.player != null && isRotating) {
             e.setYaw(sentRotation.getYaw());
             e.setLastYaw(prevSentRotation.getYaw());
@@ -142,9 +144,16 @@ extends ClientBase {
 
     @EventTarget
     public void onCameraPitch(CameraPitchEvent cameraPitchEvent) {
+        if (isFakeAntiAimOverriding()) return;
         if (sentRotation != null && prevSentRotation != null) {
             cameraPitchEvent.setPitch(sentRotation.getPitch());
         }
+    }
+
+
+    private static boolean isFakeAntiAimOverriding() {
+        FakeAntiAim faa = FakeAntiAim.INSTANCE;
+        return faa != null && faa.isEnabled() && faa.overrideRotation.getValue();
     }
 
     @EventTarget(value=4)
