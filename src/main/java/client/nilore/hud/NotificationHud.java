@@ -25,8 +25,7 @@ import client.nilore.render.Paint;
 import client.nilore.render.Renderer;
 import client.nilore.render.RoundedRectangle;
 import client.nilore.settings.impl.NumberSetting;
-import client.nilore.utils.animation.SmoothAnimationTimer;
-import client.nilore.utils.math.Easings;
+import client.nilore.utils.math.LerpUtil;
 import client.nilore.utils.render.ColorUtil;
 import client.nilore.utils.render.TextureUtil;
 
@@ -102,26 +101,28 @@ public class NotificationHud extends HudElement {
             if (elapsed < dur) {
                 // Visible: entrance or steady state
                 if (!entry.entranceStarted) {
-                    // First render: kick off entrance animations
                     entry.entranceStarted = true;
-                    entry.xAnim.animate(targetX, 0.3, Easings.EASE_OUT_POW4);
-                    entry.alphaAnim.animate(1.0, 0.2, Easings.EASE_OUT_POW3);
+                    entry.entranceTime = now;
+                    entry.x = screenW + 10.0f;
                 }
-                entry.xAnim.tick();
-                entry.alphaAnim.tick();
+                float entranceElapsed = (now - entry.entranceTime) / 1000f;
+                float slideDuration = 0.08f;
+                float t = Math.min(1.0f, entranceElapsed / slideDuration);
+                entry.x = (screenW + 10.0f) + (targetX - (screenW + 10.0f)) * t;
+                entry.alpha = Math.min(1.0f, entry.alpha + 0.05f);
             } else if (!entry.exiting) {
                 // Time's up: start exit
                 entry.exiting = true;
                 entry.lastBarProgress = 0.0f;
                 entry.exitStartTime = now;
-                entry.alphaAnim.setCurrentValue(1.0);
-                entry.alphaAnim.animate(0.0, 0.2, Easings.EASE_OUT_QUAD);
-                entry.xAnim.animate(screenW + 10.0, 0.2, Easings.EASE_OUT_QUAD);
             } else {
-                // Exiting
-                entry.xAnim.tick();
-                entry.alphaAnim.tick();
-                if (!entry.alphaAnim.isAnimating() || (now - entry.exitStartTime > 300)) {
+                // Exit — time-based linear, fast 0.04s
+                float exitElapsed = (now - entry.exitStartTime) / 1000f;
+                float exitDuration = 0.04f;
+                float t = Math.min(1.0f, exitElapsed / exitDuration);
+                entry.x = targetX + ((screenW + 10.0f) - targetX) * t;
+                entry.alpha = 1.0f - t;
+                if (t >= 1.0f) {
                     it.remove();
                     continue;
                 }
@@ -136,8 +137,8 @@ public class NotificationHud extends HudElement {
             for (int i = 0; i < notifications.size(); i++) {
                 NotificationEntry entry = notifications.get(i);
                 long elapsed = now - entry.time;
-                float fadeAlpha = Mth.clamp(entry.alphaAnim.getValueF(), 0.0f, 1.0f);
-                float cardX = entry.xAnim.getValueF();
+                float fadeAlpha = Mth.clamp(entry.alpha, 0.0f, 1.0f);
+                float cardX = entry.x;
                 float cardY = baseY - i * (CARD_HEIGHT + SPACING);
 
                 float progress;
@@ -246,9 +247,10 @@ public class NotificationHud extends HudElement {
         final String name;
         final boolean enabled;
         final long time;
-        final SmoothAnimationTimer xAnim = new SmoothAnimationTimer();
-        final SmoothAnimationTimer alphaAnim = new SmoothAnimationTimer();
+        float x;
+        float alpha;
         boolean entranceStarted;
+        long entranceTime;
         boolean exiting;
         long exitStartTime;
         float lastBarProgress = 1.0f;
@@ -257,9 +259,8 @@ public class NotificationHud extends HudElement {
             this.name = name;
             this.enabled = enabled;
             this.time = time;
-            // Set initial values; animate() will be called on first render
-            this.xAnim.setCurrentValue(9999.0);
-            this.alphaAnim.setCurrentValue(0.0);
+            this.x = 9999f;
+            this.alpha = 0f;
         }
     }
 }

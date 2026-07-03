@@ -9,40 +9,40 @@ import client.nilore.render.GlHelper;
 
 public final class MD3Theme {
 
-    public static int SCRIM             = 0xCC090B10;
-    public static int SURFACE           = 0xFF101318;
-    public static int SURFACE_DIM       = 0xFF151A20;
-    public static int SIDEBAR           = 0xFF171D24;
-    public static int SURFACE_CONTAINER = 0xFF1D232C;
-    public static int SURFACE_HIGH      = 0xFF242B35;
-    public static int SURFACE_HIGHEST   = 0xFF2D3541;
+    public static int SCRIM             = 0xB80B0F16;
+    public static int SURFACE           = 0xFF181D24;
+    public static int SURFACE_DIM       = 0xFF1E242C;
+    public static int SIDEBAR           = 0xFF202832;
+    public static int SURFACE_CONTAINER = 0xFF28313C;
+    public static int SURFACE_HIGH      = 0xFF313B48;
+    public static int SURFACE_HIGHEST   = 0xFF3B4654;
 
     public static int PRIMARY           = 0xFF8BE7FF;
-    public static int PRIMARY_CONTAINER = 0xFF1D4450;
+    public static int PRIMARY_CONTAINER = 0xFF245B6A;
     public static int ON_PRIMARY        = 0xFF071521;
 
-    public static int SECONDARY         = 0xFFC1D3E8;
-    public static int SECONDARY_CONTAINER = 0xFF2A3440;
+    public static int SECONDARY         = 0xFFD2E0F0;
+    public static int SECONDARY_CONTAINER = 0xFF384554;
 
-    public static int TEXT_HIGH         = 0xFFF2F5F8;
-    public static int TEXT_MED          = 0xFFCBD3DC;
-    public static int TEXT_LOW          = 0xFF8F98A3;
-    public static int TEXT_DISABLED     = 0xFF5A6470;
+    public static int TEXT_HIGH         = 0xFFF7FAFD;
+    public static int TEXT_MED          = 0xFFD9E1EA;
+    public static int TEXT_LOW          = 0xFFAAB4C0;
+    public static int TEXT_DISABLED     = 0xFF747F8C;
 
-    public static int OUTLINE           = 0xFF33404D;
-    public static int OUTLINE_VARIANT   = 0xFF27313C;
+    public static int OUTLINE           = 0xFF4B5968;
+    public static int OUTLINE_VARIANT   = 0xFF3A4654;
 
     private static final Map<Category, int[]> CAT_DARK = new HashMap<>();
     private static final Map<Category, int[]> CAT_LIGHT = new HashMap<>();
     private static Map<Category, int[]> activeCat = CAT_DARK;
     static {
-        CAT_DARK.put(Category.COMBAT,   new int[]{0xFFFF6B7A, 0xFF4B2028});
-        CAT_DARK.put(Category.MOVEMENT, new int[]{0xFF5ED7FF, 0xFF173D4B});
-        CAT_DARK.put(Category.PLAYER,   new int[]{0xFF7DE3A1, 0xFF1C3F2C});
-        CAT_DARK.put(Category.RENDER,   new int[]{0xFFC69BFF, 0xFF372650});
-        CAT_DARK.put(Category.EXPLOIT,  new int[]{0xFFFFC857, 0xFF493816});
-        CAT_DARK.put(Category.WORLD,    new int[]{0xFF55DEC8, 0xFF153F3A});
-        CAT_DARK.put(Category.MISC,     new int[]{0xFFA8B7D5, 0xFF273141});
+        CAT_DARK.put(Category.COMBAT,   new int[]{0xFFFF8A96, 0xFF61313A});
+        CAT_DARK.put(Category.MOVEMENT, new int[]{0xFF8BE7FF, 0xFF245B6A});
+        CAT_DARK.put(Category.PLAYER,   new int[]{0xFF96F0B7, 0xFF2A563D});
+        CAT_DARK.put(Category.RENDER,   new int[]{0xFFD4B5FF, 0xFF4A3768});
+        CAT_DARK.put(Category.EXPLOIT,  new int[]{0xFFFFD875, 0xFF604A22});
+        CAT_DARK.put(Category.WORLD,    new int[]{0xFF77EAD8, 0xFF245852});
+        CAT_DARK.put(Category.MISC,     new int[]{0xFFC0CCE2, 0xFF39465A});
 
         CAT_LIGHT.put(Category.COMBAT,   new int[]{0xFFC93445, 0xFFFFDADD});
         CAT_LIGHT.put(Category.MOVEMENT, new int[]{0xFF0079A5, 0xFFD1F0FF});
@@ -92,6 +92,7 @@ public final class MD3Theme {
     public static FontRenderer fontBodyLarge(float s)   { return FontPresets.axiformaRegular(14 * s); }
     public static FontRenderer fontLabel(float s)       { return FontPresets.axiformaRegular(11 * s); }
     public static FontRenderer fontLabelLarge(float s)  { return FontPresets.axiformaRegular(12 * s); }
+    public static FontRenderer fontPingfang(float s)    { return FontPresets.pingfang(13 * s); }
     public static FontRenderer fontMaterial(float sz)   { return FontPresets.materialIcons(sz); }
 
     // ── Category ──
@@ -122,24 +123,24 @@ public final class MD3Theme {
             OUTLINE_VARIANT = 0xFFD1D9E3;
             activeCat = CAT_LIGHT;
         } else {
-            SCRIM = 0xCC090B10;
-            SURFACE = 0xFF101318;
-            SURFACE_DIM = 0xFF151A20;
-            SIDEBAR = 0xFF171D24;
-            SURFACE_CONTAINER = 0xFF1D232C;
-            SURFACE_HIGH = 0xFF242B35;
-            SURFACE_HIGHEST = 0xFF2D3541;
-            PRIMARY = 0xFF5ED7FF;
-            PRIMARY_CONTAINER = 0xFF173D4B;
+            SCRIM = 0xB80B0F16;
+            SURFACE = 0xFF181D24;
+            SURFACE_DIM = 0xFF1E242C;
+            SIDEBAR = 0xFF202832;
+            SURFACE_CONTAINER = 0xFF28313C;
+            SURFACE_HIGH = 0xFF313B48;
+            SURFACE_HIGHEST = 0xFF3B4654;
+            PRIMARY = 0xFF8BE7FF;
+            PRIMARY_CONTAINER = 0xFF245B6A;
             ON_PRIMARY = 0xFF071521;
-            SECONDARY = 0xFFC1D3E8;
-            SECONDARY_CONTAINER = 0xFF2A3440;
-            TEXT_HIGH = 0xFFF2F5F8;
-            TEXT_MED = 0xFFCBD3DC;
-            TEXT_LOW = 0xFF8F98A3;
-            TEXT_DISABLED = 0xFF5A6470;
-            OUTLINE = 0xFF33404D;
-            OUTLINE_VARIANT = 0xFF27313C;
+            SECONDARY = 0xFFD2E0F0;
+            SECONDARY_CONTAINER = 0xFF384554;
+            TEXT_HIGH = 0xFFF7FAFD;
+            TEXT_MED = 0xFFD9E1EA;
+            TEXT_LOW = 0xFFAAB4C0;
+            TEXT_DISABLED = 0xFF747F8C;
+            OUTLINE = 0xFF4B5968;
+            OUTLINE_VARIANT = 0xFF3A4654;
             activeCat = CAT_DARK;
         }
     }

@@ -19,6 +19,7 @@ import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 import client.nilore.NiloreClient;
+import client.nilore.gui.material3.MD3Theme;
 import client.nilore.modules.impl.misc.MusicPlayer;
 import client.nilore.modules.impl.misc.music.AudioPlayer;
 import client.nilore.modules.impl.misc.music.LyricLine;
@@ -39,21 +40,35 @@ import client.nilore.utils.math.Easings;
 import client.nilore.utils.render.ColorUtil;
 
 public class MusicPlayerScreen extends Screen {
-    // Fonts — FangSong style (pingfang as available Chinese font)
-    private static final FontRenderer TITLE_FONT = FontPresets.pingfang(22.0f);
-    private static final FontRenderer HEADING_FONT = FontPresets.pingfang(16.0f);
-    private static final FontRenderer BODY_FONT = FontPresets.pingfang(16.0f);
-    private static final FontRenderer INPUT_FONT = FontPresets.pingfang(24.0f);
-    private static final FontRenderer SMALL_FONT = FontPresets.pingfang(14.0f);
-    private static final FontRenderer ICON_FONT = FontPresets.materialIcons(20.0f);
-    private static final FontRenderer SIDEBAR_FONT = FontPresets.productSans(18.0f);
+    // Fonts
+    private static final FontRenderer TITLE_FONT    = FontPresets.pingfang(22.0f);
+    private static final FontRenderer HEADING_FONT  = FontPresets.pingfang(16.0f);
+    private static final FontRenderer BODY_FONT     = FontPresets.pingfang(16.0f);
+    private static final FontRenderer INPUT_FONT    = FontPresets.pingfang(20.0f);
+    private static final FontRenderer SMALL_FONT    = FontPresets.pingfang(14.0f);
+    private static final FontRenderer SIDEBAR_TITLE_FONT = FontPresets.pingfang(20.0f);
+    private static final FontRenderer SIDEBAR_FONT  = FontPresets.productSans(18.0f);
 
-    // Layout
-    private static final float SIDEBAR_W = 160.0f;
-    private static final float BOTTOM_H = 72.0f;
-    private static final float RADIUS = 12.0f;
-    private static final float PAD = 16.0f;
-    private static final float GAP = 8.0f;
+    private static final FontRenderer ICON_FONT     = FontPresets.materialIcons(18.0f);
+    private static final FontRenderer ICON_FONT_LG  = FontPresets.materialIcons(24.0f);
+
+    // Material Icons
+    private static final String ICON_PREV    = "";
+    private static final String ICON_PLAY    = "";
+    private static final String ICON_PAUSE   = "";
+    private static final String ICON_NEXT    = "";
+    private static final String ICON_VOLUME  = "";
+    private static final String ICON_SEARCH  = "";
+    private static final String ICON_QUEUE   = "";
+    private static final String ICON_INFO    = "";
+    private static final String ICON_PERSON  = "";
+
+    // Layout — M3 inspired
+    private static final float SIDEBAR_W    = 160.0f;
+    private static final float BOTTOM_H     = 76.0f;
+    private static final float PANEL_RADIUS = 16.0f;
+    private static final float PAD          = 20.0f;
+    private static final float GAP          = 10.0f;
 
     // State
     private Page page = Page.SEARCH;
@@ -86,7 +101,7 @@ public class MusicPlayerScreen extends Screen {
 
     private final SmoothAnimationTimer openAnim = new SmoothAnimationTimer();
 
-    // Album art state
+    // Album art
     private volatile Texture albumTexture;
     private long albumSongId = -1;
     private volatile boolean albumLoading = false;
@@ -99,6 +114,10 @@ public class MusicPlayerScreen extends Screen {
 
     @Override
     public void tick() {
+        // Stop playback when not in a world (title screen)
+        if (Minecraft.getInstance().level == null) {
+            MusicPlayer.AUDIO_PLAYER.stop();
+        }
         if (this.searchDirty && this.searchFocused
                 && System.currentTimeMillis() - this.lastSearchEditMs >= 350) {
             this.startSearch();
@@ -113,27 +132,32 @@ public class MusicPlayerScreen extends Screen {
         float openProgress = this.openAnim.getValueF();
 
         Renderer.render(guiGraphics, ctx -> {
-            float outerW = Math.max(260.0f, Math.min(this.width - 32.0f, 690.0f));
-            float outerH = Math.max(200.0f, Math.min(this.height - 32.0f, 385.0f));
+            float outerW = Math.max(280.0f, Math.min(this.width - 32.0f, 720.0f));
+            float outerH = Math.max(220.0f, Math.min(this.height - 32.0f, 420.0f));
             float ox = (this.width - outerW) * 0.5f;
             float oy = (this.height - outerH) * 0.5f;
 
-            // Overlay
+            // Scrim
             ctx.drawRectXYWH(0, 0, this.width, this.height,
-                    new Paint().setColor(ColorUtil.fromARGB(0, 0, 0, (int) (80 * openProgress))));
+                    new Paint().setColor(MD3Theme.withAlpha(MD3Theme.SCRIM, openProgress)));
 
-            // Main panel — dual layer
-            drawGlowPanel(ctx, ox, oy, outerW, outerH, RADIUS, openProgress);
+            // Main panel — M3 surface on surface container
+            ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(ox, oy, outerW, outerH, PANEL_RADIUS),
+                    new Paint().setColor(MD3Theme.withAlpha(MD3Theme.SURFACE_DIM, openProgress * 0.98f)));
+            ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(ox, oy, outerW, outerH, PANEL_RADIUS),
+                    new Paint().setColor(MD3Theme.withAlpha(MD3Theme.OUTLINE_VARIANT, openProgress * 0.12f)));
 
             float contentX = ox + SIDEBAR_W;
             float contentY = oy;
             float contentW = outerW - SIDEBAR_W;
             float contentH = outerH - BOTTOM_H;
 
-            // Sidebar
+            // Separator between sidebar and content
+            ctx.drawRectXYWH(contentX, contentY + 12, 1, contentH - 24,
+                    new Paint().setColor(MD3Theme.withAlpha(MD3Theme.OUTLINE_VARIANT, openProgress * 0.5f)));
+
             renderSidebar(ctx, ox, oy, SIDEBAR_W, contentH, mouseX, mouseY);
 
-            // Content
             switch (this.page) {
                 case PLAYER -> renderPlayer(ctx, contentX, contentY, contentW, contentH, mouseX, mouseY);
                 case SEARCH -> renderSearch(ctx, contentX, contentY, contentW, contentH, mouseX, mouseY);
@@ -141,169 +165,201 @@ public class MusicPlayerScreen extends Screen {
                 case ABOUT -> renderAbout(ctx, contentX, contentY, contentW, contentH);
             }
 
-            // Bottom bar
             renderBottomBar(ctx, ox, contentY + contentH, outerW, BOTTOM_H, mouseX, mouseY);
-
-            // Loading overlay
-            if (searching) {
-                String loading = "Searching...";
-                float lw = GlHelper.getStringWidth(loading, BODY_FONT);
-                GlHelper.drawText(loading, ox + (outerW - lw) / 2f, oy + outerH / 2f, BODY_FONT, 0xFFAAAAAA);
-            }
         });
     }
 
-    // --- Sidebar ---
+    // ───────────── Sidebar ─────────────
 
     private void renderSidebar(DrawContext ctx, float x, float y, float w, float h, int mx, int my) {
-        GlHelper.drawTextWithShadow("Music", x + PAD, y + 20, HEADING_FONT,
-                new Paint().setColor(0xFFFFFFFF));
-        GlHelper.drawText("Player", x + PAD, y + 40, SMALL_FONT, 0xFFAAAAAA);
+        int accent = MD3Theme.PRIMARY;
 
-        float navY = y + 64;
-        float navH = 30;
-        float navGap = 34;
-        navItem(ctx, x + PAD, navY, w - PAD * 2, navH, Page.PLAYER, "Player", mx, my);
-        navItem(ctx, x + PAD, navY + navGap, w - PAD * 2, navH, Page.SEARCH, "Search", mx, my);
-        navItem(ctx, x + PAD, navY + navGap * 2, w - PAD * 2, navH, Page.QUEUE, "Queue", mx, my);
-        navItem(ctx, x + PAD, navY + navGap * 3, w - PAD * 2, navH, Page.ABOUT, "About", mx, my);
+        GlHelper.drawText("Music", x + PAD, y + 22, SIDEBAR_TITLE_FONT, MD3Theme.TEXT_HIGH);
+        GlHelper.drawText("Player", x + PAD, y + 42, SMALL_FONT, MD3Theme.withAlpha(accent, 0.55f));
+
+        float navY = y + 68;
+        float navH = 32;
+        float navGap = 6;
+        float navW = w - PAD * 2;
+
+        navItem(ctx, x + PAD, navY, navW, navH, Page.PLAYER, ICON_PERSON, "Player", mx, my);
+        navItem(ctx, x + PAD, navY + navH + navGap, navW, navH, Page.SEARCH, ICON_SEARCH, "Search", mx, my);
+        navItem(ctx, x + PAD, navY + (navH + navGap) * 2, navW, navH, Page.QUEUE, ICON_QUEUE, "Queue", mx, my);
+        navItem(ctx, x + PAD, navY + (navH + navGap) * 3, navW, navH, Page.ABOUT, ICON_INFO, "About", mx, my);
     }
 
-    private void navItem(DrawContext ctx, float x, float y, float w, float h, Page target, String label, int mx, int my) {
+    private void navItem(DrawContext ctx, float x, float y, float w, float h, Page target, String icon, String label, int mx, int my) {
         boolean active = this.page == target;
         boolean hover = contains(mx, my, x, y, w, h);
+        int accent = MD3Theme.PRIMARY;
 
         if (active) {
-            rounded(ctx, x, y, w, h, 6, new int[]{255, 255, 255, 25});
+            ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(x, y, w, h, 10),
+                    new Paint().setColor(MD3Theme.withAlpha(accent, 0.15f)));
         } else if (hover) {
-            rounded(ctx, x, y, w, h, 6, new int[]{255, 255, 255, 12});
+            ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(x, y, w, h, 10),
+                    new Paint().setColor(MD3Theme.withAlpha(MD3Theme.SURFACE_HIGH, 0.5f)));
         }
 
-        int textColor = active ? 0xFFFFFFFF : hover ? 0xFFCCCCCC : 0xFFAAAAAA;
-        GlHelper.drawText(label, x + PAD, y + (h - 14) / 2 + 7, SIDEBAR_FONT, textColor);
-        if (active) {
-            GlHelper.drawText(label, x + PAD, y + (h - 14) / 2 + 7, SIDEBAR_FONT,
-                    ColorUtil.fromARGB(255, 255, 255, 150));
-        }
+        int textColor = active ? MD3Theme.TEXT_HIGH : hover ? MD3Theme.TEXT_MED : MD3Theme.TEXT_LOW;
+        int iconColor = active ? accent : textColor;
+        GlHelper.drawText(icon, x + 12, y + (h - ICON_FONT.getMetrics().capHeight()) / 2f + 3f, ICON_FONT, iconColor);
+        GlHelper.drawText(label, x + 38, y + (h - SIDEBAR_FONT.getMetrics().capHeight()) / 2f + 2f, SIDEBAR_FONT, textColor);
 
         this.clickAreas.add(new ClickArea(x, y, w, h, () -> this.page = target));
     }
 
-    // --- Search Page ---
+    // ───────────── Search Page ─────────────
 
     private void renderSearch(DrawContext ctx, float x, float y, float w, float h, int mx, int my) {
-        float pad = PAD;
-        GlHelper.drawTextWithShadow("Search", x + pad, y + pad + 14, TITLE_FONT,
-                new Paint().setColor(0xFFFFFFFF));
+        int accent = MD3Theme.PRIMARY;
 
-        float inputX = x + pad;
-        float inputY = y + pad + 48;
-        float buttonWidth = 70;
-        float inputHeight = 40;
-        float inputWidth = w - pad * 2;
+        // ── Unified search card ──
+        float cardPad = PAD * 1.2f;
+        float cardR = 20f;
+        float cardX = x + PAD;
+        float cardY = y + PAD;
+        float cardW = w - PAD * 2;
+        float inputH = 44f;
+        float headerH = 32f;
 
-        // Input field — dual layer background
-        rounded(ctx, inputX, inputY, inputWidth, inputHeight, 8, new int[]{24, 24, 24, 150});
-        rounded(ctx, inputX, inputY, inputWidth, inputHeight, 8, new int[]{255, 255, 255, 20});
+        // Card background
+        ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(cardX, cardY, cardW, h - PAD, cardR),
+                new Paint().setColor(MD3Theme.withAlpha(MD3Theme.SURFACE, 0.95f)));
 
-        float textY = inputY + (inputHeight - 24) / 2 + 10;
-        String displayText = this.searchText.isEmpty() && !this.searchFocused ? "  Search songs..." : this.searchText;
-        if (this.searchFocused) {
-            float cursorX = Math.min(inputX + inputWidth - buttonWidth - 10, inputX + 9 + measure(displayText, INPUT_FONT) + 2);
-            float cursorH = 18;
-            float cursorTop = inputY + (inputHeight - cursorH) / 2;
-            float cursorBottom = cursorTop + cursorH;
-            if (this.searchSelectAll && !this.searchText.isEmpty()) {
-                float selW = Math.min(inputWidth - buttonWidth - 30, measure(this.searchText, INPUT_FONT) + 4);
-                rounded(ctx, inputX + 7, cursorTop, selW, cursorBottom - cursorTop, 4, new int[]{255, 255, 255, 40});
+        // ── Header area: "Search" + input ──
+        float innerX = cardX + cardPad;
+        float innerW = cardW - cardPad * 2;
+
+        GlHelper.drawText("Search", innerX, cardY + cardPad, TITLE_FONT, MD3Theme.TEXT_HIGH);
+
+        float inputY = cardY + cardPad + headerH + 4;
+        boolean inputHov = contains(mx, my, innerX, inputY, innerW, inputH);
+
+        // Input background — surface container
+        ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(innerX, inputY, innerW, inputH, 12),
+                new Paint().setColor(MD3Theme.withAlpha(MD3Theme.SURFACE_CONTAINER, 0.9f)));
+        if (searchFocused) {
+            ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(innerX, inputY, innerW, inputH, 12),
+                    new Paint().setColor(MD3Theme.withAlpha(accent, 0.12f)));
+        }
+
+        // Input text
+        float textY = inputY + (inputH - INPUT_FONT.getMetrics().capHeight()) / 2f + 1f;
+        boolean empty = searchText.isEmpty() && !searchFocused;
+
+        // Search icon
+        float iconX = innerX + 14;
+        float iconY = inputY + (inputH - ICON_FONT.getMetrics().capHeight()) / 2f + 1f;
+        GlHelper.drawText(ICON_SEARCH, iconX, iconY, ICON_FONT,
+                MD3Theme.withAlpha(empty ? MD3Theme.TEXT_LOW : accent, 0.55f));
+
+        // Input text (after icon)
+        float inputTextOffset = iconX + GlHelper.getStringWidth(ICON_SEARCH, ICON_FONT) + 8;
+        String display = empty ? "Search songs..." : searchText;
+        int textAlpha = empty ? 100 : 200;
+        GlHelper.drawText(ellipsize(display, 28), inputTextOffset, textY, INPUT_FONT,
+                MD3Theme.withAlpha(searchFocused && !empty ? MD3Theme.TEXT_HIGH : MD3Theme.TEXT_LOW, textAlpha / 255f));
+
+        // Cursor
+        if (searchFocused) {
+            float cursorX = inputTextOffset + measure(searchText.isEmpty() && !searchSelectAll ? "" : searchText, INPUT_FONT) + 2;
+            float cursorH = 18f;
+            float cursorY = inputY + (inputH - cursorH) / 2f;
+            if (searchSelectAll && !searchText.isEmpty()) {
+                float selW = measure(searchText, INPUT_FONT) + 6;
+                ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(inputTextOffset - 2, cursorY, selW, cursorH, 4),
+                        new Paint().setColor(MD3Theme.withAlpha(accent, 0.25f)));
             } else {
                 float blink = (float) Math.abs(Math.sin(System.currentTimeMillis() / 200.0));
-                ctx.drawLine(cursorX, cursorTop, cursorX, cursorBottom,
-                        new Paint().setColor(ColorUtil.fromARGB(255, 255, 255, (int) (180 * blink))).setStrokeWidth(1));
+                ctx.drawLine(cursorX, cursorY, cursorX, cursorY + cursorH,
+                        new Paint().setColor(MD3Theme.withAlpha(accent, (int) (200 * blink))).setStrokeWidth(1.5f));
             }
         }
-        int inputTextAlpha = this.searchText.isEmpty() && !this.searchFocused ? 120 : 180;
-        GlHelper.drawText(ellipsize(displayText, 40), inputX + 9, textY, INPUT_FONT,
-                ColorUtil.fromARGB(255, 255, 255, inputTextAlpha));
-        this.clickAreas.add(new ClickArea(inputX, inputY, inputWidth - buttonWidth, inputHeight, () -> {
+        this.clickAreas.add(new ClickArea(innerX, inputY, innerW, inputH, () -> {
             this.searchFocused = true;
             this.searchSelectAll = false;
         }));
 
-        // Search button — vertically centered in input
-        float btnPad = 4;
-        float btnX = inputX + inputWidth - buttonWidth + btnPad;
-        float btnH = 28;
-        float btnY = inputY + (inputHeight - btnH) / 2;
-        {
-            boolean hover = contains(mx, my, btnX, btnY, buttonWidth - btnPad * 2, btnH);
-            rounded(ctx, btnX, btnY, buttonWidth - btnPad * 2, btnH, 6,
-                    hover ? new int[]{255, 255, 255, 35} : new int[]{255, 255, 255, 18});
-            float btnTextY = btnY + (btnH - 12) / 2 + 4;
-            float btnTextW = GlHelper.getStringWidth(this.searching ? "..." : "Search", SMALL_FONT);
-            GlHelper.drawText(this.searching ? "..." : "Search", btnX + (buttonWidth - btnPad * 2 - btnTextW) / 2, btnTextY, SMALL_FONT,
-                    hover ? 0xFFFFFFFF : 0xFFCCCCCC);
-            this.clickAreas.add(new ClickArea(btnX, btnY, buttonWidth - btnPad * 2, btnH, this::startSearch));
-        }
+        // Enter key hint
+        float hintX = innerX + innerW - 14;
+        float hintW = GlHelper.getStringWidth("⏎", SMALL_FONT);
+        GlHelper.drawText("⏎", hintX - hintW, textY, SMALL_FONT,
+                MD3Theme.withAlpha(accent, searchText.isEmpty() ? 0.25f : 0.5f));
 
-        // Results
-        float listX = inputX;
-        float listY = inputY + inputHeight + 12;
-        float rowH = 46;
-        float listW = inputWidth;
-        float listH = h - (listY - y) - pad;
-        this.maxSearchScroll = Math.max(0, this.searchResults.size() * (rowH + 2) - 2 - listH);
-        this.searchScroll = clamp(this.searchScroll, 0, this.maxSearchScroll);
+        // ── Results area ──
+        float listY = inputY + inputH + 12;
+        float listH = (cardY + h - PAD) - listY - cardPad;
+        float rowH = 48f;
+
+        maxSearchScroll = Math.max(0, searchResults.size() * (rowH + 3) - 3 - listH);
+        searchScroll = clamp(searchScroll, 0, maxSearchScroll);
 
         ctx.save();
-        ctx.clipRect(Rectangle.ofXYWH(listX, listY, listW, listH), true);
+        ctx.clipRect(Rectangle.ofXYWH(innerX, listY, innerW, listH), true);
 
-        if (this.searchResults.isEmpty() && !searching) {
-            GlHelper.drawText("Type a keyword and press Enter.", listX + 12, listY + 14, BODY_FONT, 0xFF888888);
+        if (searching) {
+            String loading = ICON_SEARCH + "  Searching...";
+            float lw = GlHelper.getStringWidth(loading, BODY_FONT);
+            GlHelper.drawText(loading, innerX + (innerW - lw) / 2f, listY + listH / 2f - 10, BODY_FONT,
+                    MD3Theme.withAlpha(MD3Theme.TEXT_LOW, 0.6f));
+        } else if (searchResults.isEmpty() && !searchText.isEmpty() && !searchDirty) {
+            GlHelper.drawText("No results found", innerX + 14, listY + 14, BODY_FONT, MD3Theme.TEXT_DISABLED);
+        } else if (searchResults.isEmpty() && searchText.isEmpty()) {
+            GlHelper.drawText("Type to search for songs", innerX + 14, listY + 14, BODY_FONT, MD3Theme.TEXT_DISABLED);
         } else {
-            float yy = listY - this.searchScroll;
+            float yy = listY - searchScroll;
             AudioPlayer player = MusicPlayer.AUDIO_PLAYER;
             SongInfo playing = player.getCurrentSong();
-            for (int i = 0; i < this.searchResults.size(); i++) {
-                SongInfo song = this.searchResults.get(i);
-                if (yy + rowH < listY) { yy += rowH + 2; continue; }
+            for (int i = 0; i < searchResults.size(); i++) {
+                SongInfo song = searchResults.get(i);
+                if (yy + rowH < listY) { yy += rowH + 3; continue; }
                 if (yy > listY + listH) break;
 
-                boolean hover = contains(mx, my, listX, yy, listW, rowH);
+                boolean hover = contains(mx, my, innerX, yy, innerW, rowH);
                 boolean isPlaying = playing != null && playing.id == song.id;
 
                 if (isPlaying) {
-                    rounded(ctx, listX, yy, listW, rowH, 6, new int[]{255, 255, 255, 20});
+                    ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(innerX, yy, innerW, rowH, 10),
+                            new Paint().setColor(MD3Theme.withAlpha(accent, 0.12f)));
                 } else if (hover) {
-                    rounded(ctx, listX, yy, listW, rowH, 6, new int[]{255, 255, 255, 10});
+                    ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(innerX, yy, innerW, rowH, 10),
+                            new Paint().setColor(MD3Theme.withAlpha(MD3Theme.SURFACE_HIGH, 0.4f)));
                 }
 
-                int nameColor = isPlaying ? 0xFFFFFFFF : hover ? 0xFFDDDDDD : 0xFFAAAAAA;
-                GlHelper.drawText(ellipsize(song.name, 36), listX + 12, yy + 12, isPlaying ? HEADING_FONT : BODY_FONT, nameColor);
-                GlHelper.drawText(ellipsize(song.artist, 40), listX + 12, yy + 30, SMALL_FONT, 0xFF888888);
+                // Playing indicator
+                if (isPlaying) {
+                    GlHelper.drawText("♪", innerX + 12, yy + 14, HEADING_FONT, accent);
+                }
+
+                float textOffset = isPlaying ? 32 : 14;
+                int nameColor = isPlaying ? accent : hover ? MD3Theme.TEXT_HIGH : MD3Theme.TEXT_MED;
+                GlHelper.drawText(ellipsize(song.name, 34), innerX + textOffset, yy + 10,
+                        isPlaying ? HEADING_FONT : BODY_FONT, nameColor);
+                GlHelper.drawText(ellipsize(song.artist, 38), innerX + textOffset, yy + 30,
+                        SMALL_FONT, MD3Theme.TEXT_DISABLED);
 
                 if (song.duration > 0) {
                     String dur = song.formatDuration();
                     float durW = GlHelper.getStringWidth(dur, SMALL_FONT);
-                    GlHelper.drawText(dur, listX + listW - durW - 12, yy + 16, SMALL_FONT, 0xFF666666);
+                    GlHelper.drawText(dur, innerX + innerW - durW - 4, yy + 14, SMALL_FONT, MD3Theme.TEXT_LOW);
                 }
 
                 int fi = i;
-                this.clickAreas.add(new ClickArea(listX, yy, listW, rowH, () -> playSong(this.searchResults.get(fi))));
-                yy += rowH + 2;
+                this.clickAreas.add(new ClickArea(innerX, yy, innerW, rowH, () -> playSong(searchResults.get(fi))));
+                yy += rowH + 3;
             }
         }
 
         ctx.restore();
     }
 
-    // --- Player Page ---
+    // ───────────── Player Page ─────────────
 
     private void renderPlayer(DrawContext ctx, float x, float y, float w, float h, int mx, int my) {
         AudioPlayer player = MusicPlayer.AUDIO_PLAYER;
         SongInfo song = player.getCurrentSong();
 
-        // Load album art
         if (song != null) {
             loadAlbumArt(song);
             if (albumBytes != null) {
@@ -312,59 +368,66 @@ public class MusicPlayerScreen extends Screen {
                     DynamicTexture dyn = new DynamicTexture(img);
                     albumTexture = new Texture(dyn.getId(), img.getWidth(), img.getHeight());
                 } catch (Exception e) {
-                    System.err.println("[MusicPlayerScreen] Failed to create album texture: " + e.getMessage());
+                    System.err.println("[MusicPlayerScreen] Album art failed: " + e.getMessage());
                 }
                 albumBytes = null;
             }
         }
 
-        GlHelper.drawTextWithShadow("Now Playing", x + PAD, y + PAD, TITLE_FONT,
-                new Paint().setColor(0xFFFFFFFF));
+        GlHelper.drawText("Now Playing", x + PAD, y + PAD + 4, TITLE_FONT, MD3Theme.TEXT_HIGH);
 
-        float coverSize = Math.min(180, Math.max(120, w * 0.25f));
+        float coverSize = Math.min(180, Math.max(120, w * 0.28f));
         float coverX = x + PAD;
-        float coverY = y + 52;
+        float coverY = y + 58;
+        float coverR = 14f;
 
-        // Draw album art or placeholder
+        // Album art surface
         if (albumTexture != null) {
             org.joml.Matrix4f pose = ctx.getPoseStack().last().pose();
             DrawContext.getRoundedRectShader().drawTextured(pose,
                     coverX, coverY, coverX + coverSize, coverY + coverSize,
-                    10, 10, 10, 10,
+                    coverR, coverR, coverR, coverR,
                     0xFFFFFFFF, albumTexture.getGlId(), 0, 0, 1, 1);
         } else {
-            rounded(ctx, coverX, coverY, coverSize, coverSize, 10, new int[]{24, 24, 24, 150});
-            rounded(ctx, coverX, coverY, coverSize, coverSize, 10, new int[]{255, 255, 255, 15});
+            ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(coverX, coverY, coverSize, coverSize, coverR),
+                    new Paint().setColor(MD3Theme.SURFACE_CONTAINER));
+            ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(coverX, coverY, coverSize, coverSize, coverR),
+                    new Paint().setColor(MD3Theme.withAlpha(MD3Theme.PRIMARY, 0.08f)));
         }
 
         if (song != null) {
-            GlHelper.drawText(ellipsize(song.name, 24), coverX, coverY + coverSize + GAP, HEADING_FONT, 0xFFFFFFFF);
-            GlHelper.drawText(ellipsize(song.artist, 30), coverX, coverY + coverSize + GAP + 22, BODY_FONT, 0xFFAAAAAA);
+            GlHelper.drawText(ellipsize(song.name, 22), coverX, coverY + coverSize + GAP + 2,
+                    HEADING_FONT, MD3Theme.TEXT_HIGH);
+            GlHelper.drawText(ellipsize(song.artist, 28), coverX, coverY + coverSize + GAP + 24,
+                    BODY_FONT, MD3Theme.TEXT_MED);
         } else {
-            GlHelper.drawText("No track playing", coverX, coverY + coverSize + GAP, HEADING_FONT, 0xFFFFFFFF);
-            GlHelper.drawText("Search a song to start.", coverX, coverY + coverSize + GAP + 22, BODY_FONT, 0xFFAAAAAA);
+            GlHelper.drawText("No track playing", coverX, coverY + coverSize + GAP + 2,
+                    HEADING_FONT, MD3Theme.TEXT_HIGH);
+            GlHelper.drawText("Search a song to start.", coverX, coverY + coverSize + GAP + 24,
+                    BODY_FONT, MD3Theme.TEXT_MED);
         }
 
-        float lyricsX = coverX + coverSize + 20;
-        float lyricsY = y + 52;
+        float lyricsX = coverX + coverSize + 24;
+        float lyricsY = y + 58;
         float lyricsW = w - (lyricsX - x) - PAD;
-        float lyricsH = h - 82;
+        float lyricsH = h - 88;
 
-        rounded(ctx, lyricsX, lyricsY, lyricsW, lyricsH, 10, new int[]{24, 24, 24, 150});
-        rounded(ctx, lyricsX, lyricsY, lyricsW, lyricsH, 10, new int[]{255, 255, 255, 10});
+        ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(lyricsX, lyricsY, lyricsW, lyricsH, 14),
+                new Paint().setColor(MD3Theme.SURFACE_CONTAINER));
 
-        renderLyrics(ctx, song, lyricsX + 14, lyricsY + 12, lyricsW - 28, lyricsH - 24);
+        renderLyrics(ctx, song, lyricsX + 16, lyricsY + 14, lyricsW - 32, lyricsH - 28);
     }
 
     private void renderLyrics(DrawContext ctx, SongInfo song, float x, float y, float w, float h) {
+        int accent = MD3Theme.PRIMARY;
         if (song == null) {
-            GlHelper.drawText("Lyrics will appear here.", x, y, BODY_FONT, 0xFF888888);
+            GlHelper.drawText("Lyrics will appear here.", x, y, BODY_FONT, MD3Theme.TEXT_DISABLED);
             return;
         }
 
         List<LyricLine> lines = lyricsFor(song);
         if (lines.isEmpty()) {
-            GlHelper.drawText("No lyrics available.", x, y, BODY_FONT, 0xFF888888);
+            GlHelper.drawText("No lyrics available.", x, y, BODY_FONT, MD3Theme.TEXT_DISABLED);
             return;
         }
 
@@ -372,21 +435,22 @@ public class MusicPlayerScreen extends Screen {
         long posMs = player.getCurrentPositionMs();
         int current = findCurrentLyricLine(lines, posMs);
 
-        float lineH = 26;
+        float lineH = 28;
         float targetScroll = Math.max(0, current * lineH - h * 0.42f);
-        this.lyricScroll += (targetScroll - this.lyricScroll) * 0.18f;
+        lyricScroll += (targetScroll - lyricScroll) * 0.18f;
 
         ctx.save();
         ctx.clipRect(Rectangle.ofXYWH(x, y, w, h), true);
 
-        float yy = y - this.lyricScroll;
+        float yy = y - lyricScroll;
         for (int i = 0; i < lines.size(); i++) {
             LyricLine line = lines.get(i);
             if (yy > y - lineH && yy < y + h + lineH) {
                 boolean active = i == current;
                 String display = timestamp(line.timeMs()) + "  " + line.text();
+                int lyricColor = active ? accent : MD3Theme.TEXT_DISABLED;
                 GlHelper.drawText(ellipsize(display, 60), x, yy + 3,
-                        active ? HEADING_FONT : SMALL_FONT, active ? 0xFFFFFFFF : 0xFF888888);
+                        active ? HEADING_FONT : SMALL_FONT, lyricColor);
             }
             yy += lineH;
         }
@@ -397,209 +461,222 @@ public class MusicPlayerScreen extends Screen {
     private int findCurrentLyricLine(List<LyricLine> lines, long posMs) {
         int idx = -1;
         for (int i = 0; i < lines.size(); i++) {
-            if (lines.get(i).timeMs() <= posMs) {
-                idx = i;
-            } else {
-                break;
-            }
+            if (lines.get(i).timeMs() <= posMs) idx = i;
+            else break;
         }
         return Math.max(0, idx);
     }
 
     private List<LyricLine> lyricsFor(SongInfo song) {
-        List<LyricLine> cached = this.lyricsCache.get(song.id);
+        List<LyricLine> cached = lyricsCache.get(song.id);
         if (cached != null) return cached;
 
-        if (this.lyricsRequested.putIfAbsent(song.id, Boolean.TRUE) == null) {
-            NeteaseApi.getLyrics(song.id).thenAccept(lines -> {
-                this.lyricsCache.put(song.id, lines == null ? List.of() : lines);
-            });
+        if (lyricsRequested.putIfAbsent(song.id, Boolean.TRUE) == null) {
+            NeteaseApi.getLyrics(song.id).thenAccept(lines ->
+                    lyricsCache.put(song.id, lines == null ? List.of() : lines));
         }
         return List.of();
     }
 
-    // --- Queue Page ---
+    // ───────────── Queue Page ─────────────
 
     private void renderQueue(DrawContext ctx, float x, float y, float w, float h, int mx, int my) {
-        GlHelper.drawTextWithShadow("Queue", x + PAD, y + PAD, TITLE_FONT,
-                new Paint().setColor(0xFFFFFFFF));
+        int accent = MD3Theme.PRIMARY;
+        GlHelper.drawText("Queue", x + PAD, y + PAD + 4, TITLE_FONT, MD3Theme.TEXT_HIGH);
 
         if (!playQueue.isEmpty()) {
             String count = playQueue.size() + " tracks";
             float countW = GlHelper.getStringWidth(count, SMALL_FONT);
-            GlHelper.drawText(count, x + w - countW - PAD, y + 22, SMALL_FONT, 0xFF888888);
+            GlHelper.drawText(count, x + w - countW - PAD, y + 28, SMALL_FONT, MD3Theme.TEXT_LOW);
         }
 
         float listX = x + PAD;
-        float listY = y + 48;
-        float rowH = 46;
+        float listY = y + 52;
+        float rowH = 48;
         float listW = w - PAD * 2;
-        float listH = h - 68;
-        this.maxQueueScroll = Math.max(0, playQueue.size() * (rowH + 2) - 2 - listH);
-        this.queueScroll = clamp(this.queueScroll, 0, this.maxQueueScroll);
+        float listH = h - 72;
+        maxQueueScroll = Math.max(0, playQueue.size() * (rowH + 3) - 3 - listH);
+        queueScroll = clamp(queueScroll, 0, maxQueueScroll);
 
         ctx.save();
         ctx.clipRect(Rectangle.ofXYWH(listX, listY, listW, listH), true);
 
         if (playQueue.isEmpty()) {
-            GlHelper.drawText("Queue is empty.", listX + 12, listY + 14, BODY_FONT, 0xFF888888);
+            GlHelper.drawText("Queue is empty.", listX + 14, listY + 14, BODY_FONT, MD3Theme.TEXT_DISABLED);
         } else {
             AudioPlayer player = MusicPlayer.AUDIO_PLAYER;
             SongInfo playing = player.getCurrentSong();
-            float yy = listY - this.queueScroll;
+            float yy = listY - queueScroll;
             for (int i = 0; i < playQueue.size(); i++) {
                 SongInfo song = playQueue.get(i);
-                if (yy + rowH < listY) { yy += rowH + 2; continue; }
+                if (yy + rowH < listY) { yy += rowH + 3; continue; }
                 if (yy > listY + listH) break;
 
                 boolean hover = contains(mx, my, listX, yy, listW, rowH);
                 boolean isPlaying = playing != null && playing.id == song.id;
-                boolean isCurrent = i == queueIndex;
 
                 if (isPlaying) {
-                    rounded(ctx, listX, yy, listW, rowH, 6, new int[]{255, 255, 255, 20});
+                    ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(listX, yy, listW, rowH, 10),
+                            new Paint().setColor(MD3Theme.withAlpha(accent, 0.12f)));
                 } else if (hover) {
-                    rounded(ctx, listX, yy, listW, rowH, 6, new int[]{255, 255, 255, 10});
+                    ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(listX, yy, listW, rowH, 10),
+                            new Paint().setColor(MD3Theme.withAlpha(MD3Theme.SURFACE_HIGH, 0.4f)));
                 }
 
-                String index = String.valueOf(i + 1);
-                float idxW = GlHelper.getStringWidth(index, SMALL_FONT);
-                GlHelper.drawText(index, listX + 12, yy + 16, SMALL_FONT, isCurrent ? 0xFFFFFFFF : 0xFF666666);
+                float numOffset = 0;
+                if (isPlaying) {
+                    GlHelper.drawText("♪", listX + 12, yy + 14, HEADING_FONT, accent);
+                    numOffset = 32;
+                } else {
+                    String index = String.valueOf(i + 1);
+                    float idxW = GlHelper.getStringWidth(index, SMALL_FONT);
+                    GlHelper.drawText(index, listX + 14, yy + 16, SMALL_FONT, i == queueIndex ? accent : MD3Theme.TEXT_LOW);
+                    numOffset = idxW + 26;
+                }
 
-                int nameColor = isPlaying ? 0xFFFFFFFF : hover ? 0xFFDDDDDD : 0xFFAAAAAA;
-                GlHelper.drawText(ellipsize(song.name, 32), listX + 12 + idxW + 12, yy + 8, isPlaying ? HEADING_FONT : BODY_FONT, nameColor);
-                GlHelper.drawText(ellipsize(song.artist, 36), listX + 12 + idxW + 12, yy + 26, SMALL_FONT, 0xFF888888);
+                int nameColor = isPlaying ? accent : hover ? MD3Theme.TEXT_HIGH : MD3Theme.TEXT_MED;
+                GlHelper.drawText(ellipsize(song.name, 30), listX + numOffset, yy + 10,
+                        isPlaying ? HEADING_FONT : BODY_FONT, nameColor);
+                GlHelper.drawText(ellipsize(song.artist, 34), listX + numOffset, yy + 30,
+                        SMALL_FONT, MD3Theme.TEXT_DISABLED);
 
                 if (song.duration > 0) {
                     String dur = song.formatDuration();
                     float durW = GlHelper.getStringWidth(dur, SMALL_FONT);
-                    GlHelper.drawText(dur, listX + listW - durW - 12, yy + 16, SMALL_FONT, 0xFF666666);
+                    GlHelper.drawText(dur, listX + listW - durW - 4, yy + 16, SMALL_FONT, MD3Theme.TEXT_LOW);
                 }
 
                 int fi = i;
                 this.clickAreas.add(new ClickArea(listX, yy, listW, rowH, () -> {
-                    this.queueIndex = fi;
-                    playSong(this.playQueue.get(fi));
+                    queueIndex = fi;
+                    playSong(playQueue.get(fi));
                 }));
-                yy += rowH + 2;
+                yy += rowH + 3;
             }
         }
 
         ctx.restore();
     }
 
-    // --- About Page ---
+    // ───────────── About Page ─────────────
 
     private void renderAbout(DrawContext ctx, float x, float y, float w, float h) {
-        GlHelper.drawTextWithShadow("About", x + PAD, y + PAD, TITLE_FONT,
-                new Paint().setColor(0xFFFFFFFF));
+        GlHelper.drawText("About", x + PAD, y + PAD + 4, TITLE_FONT, MD3Theme.TEXT_HIGH);
 
-        float cardY = y + 52;
+        float cardY = y + 56;
         float halfW = (w - PAD * 2 - GAP) * 0.5f;
 
-        aboutCard(ctx, x + PAD, cardY, halfW, 100, "Music Player",
+        aboutCard(ctx, x + PAD, cardY, halfW, 110, "Music Player",
                 "An in-game music player using\nNeteaseCloudMusic API.\nSearch, queue, and play music\ninside Minecraft.");
-        aboutCard(ctx, x + PAD + halfW + GAP, cardY, halfW, 100, "Notice",
+        aboutCard(ctx, x + PAD + halfW + GAP, cardY, halfW, 110, "Notice",
                 "For personal learning and testing.\nThe client does not host or\ndistribute music content.");
 
-        aboutCard(ctx, x + PAD, cardY + 116, w - PAD * 2, 70, "Credits",
+        aboutCard(ctx, x + PAD, cardY + 126, w - PAD * 2, 80, "Credits",
                 "Music API: gdstudio.xyz\nBased on NeteaseCloudMusic public API.");
     }
 
     private void aboutCard(DrawContext ctx, float x, float y, float w, float h, String title, String body) {
-        rounded(ctx, x, y, w, h, 8, new int[]{24, 24, 24, 150});
-        rounded(ctx, x, y, w, h, 8, new int[]{255, 255, 255, 12});
-        GlHelper.drawText(title, x + 14, y + 12, HEADING_FONT, 0xFFFFFFFF);
+        ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(x, y, w, h, 12),
+                new Paint().setColor(MD3Theme.SURFACE_CONTAINER));
+        GlHelper.drawText(title, x + 16, y + 14, HEADING_FONT, MD3Theme.TEXT_HIGH);
 
         String[] lines = body.split("\\n");
-        float yy = y + 34;
+        float yy = y + 38;
         for (String line : lines) {
-            GlHelper.drawText(ellipsize(line, 48), x + 14, yy, SMALL_FONT, 0xFFAAAAAA);
-            yy += 18;
+            GlHelper.drawText(ellipsize(line, 46), x + 16, yy, SMALL_FONT, MD3Theme.TEXT_MED);
+            yy += 20;
         }
     }
 
-    // --- Bottom Bar ---
+    // ───────────── Bottom Bar ─────────────
 
     private void renderBottomBar(DrawContext ctx, float x, float y, float w, float h, int mx, int my) {
+        int accent = MD3Theme.PRIMARY;
         AudioPlayer player = MusicPlayer.AUDIO_PLAYER;
         SongInfo currentSong = player.getCurrentSong();
 
-        // Bottom bar background — bottom rounded corners only
-        ctx.drawRoundedRect(RoundedRectangle.ofXYWHRadii(x, y, w, h, new float[]{0, 0, RADIUS, RADIUS}),
-                new Paint().setColor(ColorUtil.fromARGB(20, 20, 20, 200)));
+        // Background — bottom rounded only
+        ctx.drawRoundedRect(RoundedRectangle.ofXYWHRadii(x, y, w, h, new float[]{0, 0, PANEL_RADIUS, PANEL_RADIUS}),
+                new Paint().setColor(MD3Theme.SURFACE_DIM));
 
-        // Song info — left side
+        // Top separator
+        ctx.drawRectXYWH(x + PANEL_RADIUS, y, w - PANEL_RADIUS * 2, 1,
+                new Paint().setColor(MD3Theme.withAlpha(MD3Theme.OUTLINE_VARIANT, 0.6f)));
+
+        // Song info — left
         if (currentSong != null) {
-            GlHelper.drawText(ellipsize(currentSong.name, 20), x + PAD, y + 10, BODY_FONT, 0xFFFFFFFF);
-            GlHelper.drawText(ellipsize(currentSong.artist, 24), x + PAD, y + 30, SMALL_FONT, 0xFFAAAAAA);
+            GlHelper.drawText(ellipsize(currentSong.name, 20), x + PAD, y + 12, BODY_FONT, MD3Theme.TEXT_HIGH);
+            GlHelper.drawText(ellipsize(currentSong.artist, 24), x + PAD, y + 32, SMALL_FONT, MD3Theme.TEXT_MED);
         } else {
-            GlHelper.drawText("No track", x + PAD, y + 10, BODY_FONT, 0xFFFFFFFF);
-            GlHelper.drawText("Music Player", x + PAD, y + 30, SMALL_FONT, 0xFFAAAAAA);
+            GlHelper.drawText("No track", x + PAD, y + 12, BODY_FONT, MD3Theme.TEXT_HIGH);
+            GlHelper.drawText("Music Player", x + PAD, y + 32, SMALL_FONT, MD3Theme.TEXT_LOW);
         }
 
-        // Controls — centered, above progress bar
-        float controlCenterX = x + w * 0.5f;
-        float controlY = y + 10;
-        drawControlBtn(ctx, controlCenterX - 50, controlY, 36, 26, "|<", mx, my, this::prevSong);
-        drawControlBtn(ctx, controlCenterX - 8, controlY - 2, 40, 30, player.getState() == AudioPlayer.State.PLAYING ? "||" : ">", mx, my, player::togglePause);
-        drawControlBtn(ctx, controlCenterX + 38, controlY, 36, 26, ">|", mx, my, this::nextSong);
+        // Controls — center
+        float cx = x + w * 0.5f;
+        float cy = y + 12;
+        drawIconBtn(ctx, cx - 52, cy, 36, 28, ICON_PREV, mx, my, this::prevSong);
+        drawIconBtn(ctx, cx - 8, cy - 2, 40, 32,
+                player.getState() == AudioPlayer.State.PLAYING ? ICON_PAUSE : ICON_PLAY, mx, my, player::togglePause);
+        drawIconBtn(ctx, cx + 36, cy, 36, 28, ICON_NEXT, mx, my, this::nextSong);
 
-        // Progress bar — below controls, centered; time labels aligned with track center
-        float progressBarX = controlCenterX - 120;
-        float progressBarWidth = 240;
-        float progressBarY = y + 48;
-        float trackCenterOffset = 1.5f; // half of 3px track height
+        // Progress bar
+        float pbX = cx - 130;
+        float pbW = 260;
+        float pbY = y + 50;
 
         float progress = player.getProgress();
         long currentMs = player.getCurrentPositionMs();
         long totalMs = currentSong != null ? currentSong.duration : 0;
 
-        String currentTimeStr = timestamp(currentMs);
-        String totalTimeStr = timestamp(totalMs);
-        float timeY = progressBarY - trackCenterOffset + 2;
-        float currentTimeWidth = GlHelper.getStringWidth(currentTimeStr, SMALL_FONT);
-        GlHelper.drawText(currentTimeStr, progressBarX - currentTimeWidth - 8, timeY, SMALL_FONT, 0xFF666666);
-        drawSlider(ctx, progressBarX, progressBarY, progressBarWidth, progress);
-        GlHelper.drawText(totalTimeStr, progressBarX + progressBarWidth + 8, timeY, SMALL_FONT, 0xFF666666);
-        this.lastProgressRect = Rectangle.ofXYWH(progressBarX, progressBarY - 8, progressBarWidth, 20);
-        this.clickAreas.add(new ClickArea(progressBarX, progressBarY - 8, progressBarWidth, 20, () -> this.dragTarget = DragTarget.PROGRESS));
+        String curStr = timestamp(currentMs);
+        String totStr = timestamp(totalMs);
+        float timeY = pbY - 1;
+        float curW = GlHelper.getStringWidth(curStr, SMALL_FONT);
+        GlHelper.drawText(curStr, pbX - curW - 6, timeY, SMALL_FONT, MD3Theme.TEXT_LOW);
+        drawSlider(ctx, pbX, pbY, pbW, progress, accent);
+        GlHelper.drawText(totStr, pbX + pbW + 6, timeY, SMALL_FONT, MD3Theme.TEXT_LOW);
+        this.lastProgressRect = Rectangle.ofXYWH(pbX, pbY - 8, pbW, 20);
+        this.clickAreas.add(new ClickArea(pbX, pbY - 8, pbW, 20, () -> this.dragTarget = DragTarget.PROGRESS));
 
-        // Volume — right side
-        float volumeX = x + w - 120;
-        float volumeValue = this.dragTarget == DragTarget.VOLUME && this.pendingVolume >= 0
+        // Volume
+        float volX = x + w - 110;
+        float volVal = this.dragTarget == DragTarget.VOLUME && this.pendingVolume >= 0
                 ? this.pendingVolume : player.getVolume();
-        GlHelper.drawText("", volumeX - 18, timeY, ICON_FONT, 0xFF888888);
-        drawSlider(ctx, volumeX, progressBarY, 80, volumeValue);
-        this.lastVolumeRect = Rectangle.ofXYWH(volumeX, progressBarY - 8, 80, 20);
-        this.clickAreas.add(new ClickArea(volumeX, progressBarY - 8, 80, 20, () -> this.dragTarget = DragTarget.VOLUME));
+        GlHelper.drawText(ICON_VOLUME, volX - 16, timeY - 1, ICON_FONT, MD3Theme.TEXT_LOW);
+        drawSlider(ctx, volX, pbY - 5f, 80, volVal, accent);
+        this.lastVolumeRect = Rectangle.ofXYWH(volX, pbY - 13, 80, 20);
+        this.clickAreas.add(new ClickArea(volX, pbY - 13, 80, 20, () -> this.dragTarget = DragTarget.VOLUME));
     }
 
-    private void drawControlBtn(DrawContext ctx, float x, float y, float width, float height, String label,
-                                int mx, int my, Runnable action) {
+    private void drawIconBtn(DrawContext ctx, float x, float y, float width, float height, String icon,
+                             int mx, int my, Runnable action) {
         boolean hover = contains(mx, my, x, y, width, height);
-        rounded(ctx, x, y, width, height, 6, hover ? new int[]{255, 255, 255, 25} : new int[]{255, 255, 255, 10});
-        float textWidth = GlHelper.getStringWidth(label, SMALL_FONT);
-        GlHelper.drawText(label, x + (width - textWidth) / 2, y + (height - 14) / 2 + 8, SMALL_FONT, hover ? 0xFFFFFFFF : 0xFFCCCCCC);
+        int bg = hover ? MD3Theme.withAlpha(MD3Theme.SURFACE_HIGH, 0.7f) : MD3Theme.withAlpha(MD3Theme.SURFACE_HIGH, 0.2f);
+        ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(x, y, width, height, 10), new Paint().setColor(bg));
+        int color = hover ? MD3Theme.TEXT_HIGH : MD3Theme.TEXT_MED;
+        float iy = y + (height - ICON_FONT_LG.getMetrics().capHeight()) / 2f;
+        float iw = GlHelper.getStringWidth(icon, ICON_FONT_LG);
+        GlHelper.drawText(icon, x + (width - iw) / 2, iy, ICON_FONT_LG, color);
         this.clickAreas.add(new ClickArea(x, y, width, height, action));
     }
 
-    // --- Drawing Helpers ---
+    // ───────────── Drawing Helpers ─────────────
 
-    private void drawGlowPanel(DrawContext ctx, float x, float y, float w, float h, float radius, float alpha) {
-        ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(x, y, w, h, radius),
-                new Paint().setColor(ColorUtil.fromARGB(24, 24, 24, (int) (150 * alpha))));
-        ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(x, y, w, h, radius),
-                new Paint().setColor(ColorUtil.fromARGB(255, 255, 255, (int) (35 * alpha))));
-    }
-
-    private void drawSlider(DrawContext ctx, float x, float y, float w, float value) {
+    private void drawSlider(DrawContext ctx, float x, float y, float w, float value, int accent) {
         float p = clamp(value, 0, 1);
-        rounded(ctx, x, y, w, 3, 1.5f, new int[]{255, 255, 255, 30});
-        if (p > 0.001f) {
-            rounded(ctx, x, y, w * p, 3, 1.5f, new int[]{255, 255, 255, 160});
+        // Track bg
+        ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(x, y, w, 3, 1.5f),
+                new Paint().setColor(MD3Theme.withAlpha(MD3Theme.SURFACE_HIGHEST, 0.7f)));
+        // Track fill
+        if (p > 0.01f) {
+            ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(x, y, w * p, 3, 1.5f),
+                    new Paint().setColor(MD3Theme.withAlpha(accent, 0.8f)));
         }
-        rounded(ctx, x + w * p - 5, y - 3.5f, 10, 10, 5, new int[]{255, 255, 255, 220});
+        // Thumb
+        float thumbR = 6f;
+        ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(x + w * p - thumbR, y - (thumbR - 1.5f), thumbR * 2, thumbR * 2, thumbR),
+                new Paint().setColor(p > 0.01f ? (int)accent : MD3Theme.TEXT_MED));
     }
 
     private void rounded(DrawContext ctx, float x, float y, float w, float h, float r, int[] rgba) {
@@ -611,21 +688,18 @@ public class MusicPlayerScreen extends Screen {
         return GlHelper.getStringWidth(text, font);
     }
 
-    // --- Interaction ---
+    // ───────────── Interaction ─────────────
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button != 0) return false;
 
-        for (int i = this.clickAreas.size() - 1; i >= 0; i--) {
-            ClickArea area = this.clickAreas.get(i);
+        for (int i = clickAreas.size() - 1; i >= 0; i--) {
+            ClickArea area = clickAreas.get(i);
             if (!area.contains(mouseX, mouseY)) continue;
             area.action.run();
-            if (this.dragTarget == DragTarget.PROGRESS) {
-                updateProgress(mouseX);
-            } else if (this.dragTarget == DragTarget.VOLUME) {
-                updateVolume(mouseX);
-            }
+            if (this.dragTarget == DragTarget.PROGRESS) updateProgress(mouseX);
+            else if (this.dragTarget == DragTarget.VOLUME) updateVolume(mouseX);
             return true;
         }
 
@@ -636,13 +710,9 @@ public class MusicPlayerScreen extends Screen {
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
-        if (button == 0 && this.dragTarget == DragTarget.PROGRESS) {
-            updateProgress(mouseX);
-            return true;
-        }
-        if (button == 0 && this.dragTarget == DragTarget.VOLUME) {
-            updateVolume(mouseX);
-            return true;
+        if (button == 0) {
+            if (this.dragTarget == DragTarget.PROGRESS) { updateProgress(mouseX); return true; }
+            if (this.dragTarget == DragTarget.VOLUME)   { updateVolume(mouseX);   return true; }
         }
         return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
     }
@@ -672,9 +742,7 @@ public class MusicPlayerScreen extends Screen {
 
     @Override
     public boolean charTyped(char codePoint, int modifiers) {
-        if (!this.searchFocused || codePoint < 32 || codePoint == 127) {
-            return super.charTyped(codePoint, modifiers);
-        }
+        if (!this.searchFocused || codePoint < 32 || codePoint == 127) return super.charTyped(codePoint, modifiers);
         this.searchText = this.searchSelectAll ? String.valueOf(codePoint) : this.searchText + codePoint;
         this.searchSelectAll = false;
         this.searchDirty = true;
@@ -685,9 +753,17 @@ public class MusicPlayerScreen extends Screen {
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (this.searchFocused) {
-            if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
-                startSearch();
-                return true;
+            switch (keyCode) {
+                case GLFW.GLFW_KEY_ENTER, GLFW.GLFW_KEY_KP_ENTER -> { startSearch(); return true; }
+                case GLFW.GLFW_KEY_BACKSPACE -> {
+                    if (this.searchSelectAll) { this.searchText = ""; this.searchSelectAll = false; }
+                    else if (!this.searchText.isEmpty()) this.searchText = this.searchText.substring(0, this.searchText.length() - 1);
+                    this.searchDirty = true;
+                    this.lastSearchEditMs = System.currentTimeMillis();
+                    return true;
+                }
+                case GLFW.GLFW_KEY_DELETE -> { this.searchText = ""; this.searchSelectAll = false; this.searchDirty = true; this.lastSearchEditMs = System.currentTimeMillis(); return true; }
+                case GLFW.GLFW_KEY_ESCAPE -> { this.searchFocused = false; return true; }
             }
             if (Screen.isPaste(keyCode)) {
                 String paste = Minecraft.getInstance().keyboardHandler.getClipboard();
@@ -701,47 +777,18 @@ public class MusicPlayerScreen extends Screen {
                 this.searchSelectAll = !this.searchText.isEmpty();
                 return true;
             }
-            if (keyCode == GLFW.GLFW_KEY_BACKSPACE && !this.searchText.isEmpty()) {
-                if (this.searchSelectAll) {
-                    this.searchText = "";
-                    this.searchSelectAll = false;
-                } else {
-                    this.searchText = this.searchText.substring(0, this.searchText.length() - 1);
-                }
-                this.searchDirty = true;
-                this.lastSearchEditMs = System.currentTimeMillis();
-                return true;
-            }
-            if (keyCode == GLFW.GLFW_KEY_DELETE) {
-                this.searchText = "";
-                this.searchSelectAll = false;
-                this.searchDirty = true;
-                this.lastSearchEditMs = System.currentTimeMillis();
-                return true;
-            }
-            if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
-                this.searchFocused = false;
-                return true;
-            }
         }
-        if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
-            this.onClose();
-            return true;
-        }
+        if (keyCode == GLFW.GLFW_KEY_ESCAPE) { this.onClose(); return true; }
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
-    // --- Actions ---
+    // ───────────── Actions ─────────────
 
     private void startSearch() {
         this.searchDirty = false;
         String query = this.searchText.trim();
         long seq = this.searchSeq.incrementAndGet();
-        if (query.isEmpty()) {
-            this.searchResults = List.of();
-            this.searching = false;
-            return;
-        }
+        if (query.isEmpty()) { this.searchResults = List.of(); this.searching = false; return; }
         this.searching = true;
         NeteaseApi.search(query, 20).whenComplete((results, throwable) -> {
             if (this.searchSeq.get() != seq) return;
@@ -759,34 +806,25 @@ public class MusicPlayerScreen extends Screen {
         }
 
         NeteaseApi.getLyrics(song.id).thenAccept(lyrics -> {
-            this.lyricsCache.put(song.id, lyrics == null ? List.of() : lyrics);
+            lyricsCache.put(song.id, lyrics == null ? List.of() : lyrics);
             try {
-                LyricsModule lyricsMod = NiloreClient.getInstance().getModuleManager().getModule(LyricsModule.class);
-                if (lyricsMod != null) {
-                    lyricsMod.setLyrics(song.id, lyrics);
-                }
+                LyricsModule mod = NiloreClient.getInstance().getModuleManager().getModule(LyricsModule.class);
+                if (mod != null) mod.setLyrics(song.id, lyrics);
             } catch (Exception ignored) {}
         });
 
         NeteaseApi.getSongUrl(song.id).thenAccept(result -> {
             if (result == null) return;
-            if (song.duration <= 0 && result.size() > 0) {
-                song.duration = (result.size() * 1000L) / 40000;
-            }
+            if (song.duration <= 0 && result.size() > 0) song.duration = (result.size() * 1000L) / 40000;
             waitForWarmupThenPlay(song, result.url());
         });
     }
 
     private void waitForWarmupThenPlay(SongInfo song, String url) {
-        LyricsModule lyricsMod = NiloreClient.getInstance().getModuleManager().getModule(LyricsModule.class);
-        if (lyricsMod == null || lyricsMod.isWarmupComplete()) {
-            MusicPlayer.AUDIO_PLAYER.play(song, url);
-            return;
-        }
+        LyricsModule mod = NiloreClient.getInstance().getModuleManager().getModule(LyricsModule.class);
+        if (mod == null || mod.isWarmupComplete()) { MusicPlayer.AUDIO_PLAYER.play(song, url); return; }
         new Thread(() -> {
-            while (!lyricsMod.isWarmupComplete()) {
-                try { Thread.sleep(50); } catch (InterruptedException e) { return; }
-            }
+            while (!mod.isWarmupComplete()) { try { Thread.sleep(50); } catch (InterruptedException e) { return; } }
             MusicPlayer.AUDIO_PLAYER.play(song, url);
         }, "LyricsWarmupWait").start();
     }
@@ -804,35 +842,30 @@ public class MusicPlayerScreen extends Screen {
     }
 
     private void updateProgress(double mouseX) {
-        if (this.lastProgressRect == null) return;
+        if (lastProgressRect == null) return;
         AudioPlayer player = MusicPlayer.AUDIO_PLAYER;
         SongInfo song = player.getCurrentSong();
         if (song == null || song.duration <= 0) return;
-        float ratio = (float) ((mouseX - this.lastProgressRect.getX()) / this.lastProgressRect.getWidth());
-        ratio = clamp(ratio, 0, 1);
+        float ratio = clamp((float) ((mouseX - lastProgressRect.getX()) / lastProgressRect.getWidth()), 0, 1);
         player.seekToMs((long) (ratio * song.duration));
     }
 
     private void updateVolume(double mouseX) {
-        if (this.lastVolumeRect == null) return;
-        float ratio = (float) ((mouseX - this.lastVolumeRect.getX()) / this.lastVolumeRect.getWidth());
-        this.pendingVolume = clamp(ratio, 0, 1);
-        MusicPlayer.AUDIO_PLAYER.setVolume(this.pendingVolume);
+        if (lastVolumeRect == null) return;
+        float ratio = clamp((float) ((mouseX - lastVolumeRect.getX()) / lastVolumeRect.getWidth()), 0, 1);
+        this.pendingVolume = ratio;
+        MusicPlayer.AUDIO_PLAYER.setVolume(ratio);
         MusicPlayer musicMod = NiloreClient.getInstance().getModuleManager().getModule(MusicPlayer.class);
-        if (musicMod != null) {
-            musicMod.setVolumeSetting(this.pendingVolume);
-        }
+        if (musicMod != null) musicMod.setVolumeSetting(ratio);
     }
 
-    // --- Album Art ---
+    // ───────────── Album Art ─────────────
 
     private void loadAlbumArt(SongInfo song) {
         if (albumLoading) return;
         if (song.id == albumSongId && albumTexture != null) return;
         if (song.id == albumSongId && albumRetryCount >= 2) return;
-        if (song.id != albumSongId) {
-            albumRetryCount = 0;
-        }
+        if (song.id != albumSongId) albumRetryCount = 0;
         albumSongId = song.id;
         albumTexture = null;
         albumBytes = null;
@@ -846,29 +879,16 @@ public class MusicPlayerScreen extends Screen {
                 HttpRequest req = HttpRequest.newBuilder()
                         .uri(URI.create(picUrl))
                         .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0")
-                        .GET()
-                        .build();
+                        .GET().build();
                 byte[] bytes = client.send(req, HttpResponse.BodyHandlers.ofByteArray()).body();
-                if (bytes != null && bytes.length > 100) {
-                    albumBytes = bytes;
-                } else {
-                    System.err.println("[MusicPlayerScreen] Album art too small, retrying...");
-                    albumSongId = -1;
-                }
-            } catch (Exception e) {
-                System.err.println("[MusicPlayerScreen] Failed to download album art: " + e.getMessage());
-                albumSongId = -1;
-            } finally {
-                albumLoading = false;
-            }
-        }).exceptionally(e -> {
-            albumLoading = false;
-            albumSongId = -1;
-            return null;
-        });
+                if (bytes != null && bytes.length > 100) albumBytes = bytes;
+                else { System.err.println("[MusicPlayerScreen] Album art too small"); albumSongId = -1; }
+            } catch (Exception e) { System.err.println("[MusicPlayerScreen] Album download failed: " + e.getMessage()); albumSongId = -1; }
+            finally { albumLoading = false; }
+        }).exceptionally(e -> { albumLoading = false; albumSongId = -1; return null; });
     }
 
-    // --- Utilities ---
+    // ───────────── Utilities ─────────────
 
     private static boolean contains(double mx, double my, float x, float y, float w, float h) {
         return mx >= x && mx <= x + w && my >= y && my <= y + h;
@@ -891,23 +911,14 @@ public class MusicPlayerScreen extends Screen {
     }
 
     @Override
-    public boolean isPauseScreen() {
-        return false;
-    }
+    public boolean isPauseScreen() { return false; }
 
-    // --- Types ---
+    // ───────────── Types ─────────────
 
-    private enum Page {
-        PLAYER, SEARCH, QUEUE, ABOUT
-    }
-
-    private enum DragTarget {
-        NONE, PROGRESS, VOLUME
-    }
+    private enum Page { PLAYER, SEARCH, QUEUE, ABOUT }
+    private enum DragTarget { NONE, PROGRESS, VOLUME }
 
     private record ClickArea(float x, float y, float width, float height, Runnable action) {
-        boolean contains(double mouseX, double mouseY) {
-            return MusicPlayerScreen.contains(mouseX, mouseY, this.x, this.y, this.width, this.height);
-        }
+        boolean contains(double mouseX, double mouseY) { return MusicPlayerScreen.contains(mouseX, mouseY, x, y, width, height); }
     }
 }

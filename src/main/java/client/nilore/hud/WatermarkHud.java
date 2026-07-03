@@ -20,7 +20,7 @@ implements IHudElement {
     private static final FontRenderer subFont = FontPresets.poppinsMedium(12.0f);
     private static final int primaryColor = new Color(170, 170, 170).getRGB();
     private static final int shadowColor = new Color(0, 0, 0, 100).getRGB();
-    private static final float logoCharWidth = logoFont.getWidth("Z");
+    private static final float logoCharWidth = logoFont.getWidth("N");
     private static final float separatorCharWidth = subFont.getWidth("|");
     private static final float betaRawWidth = subFont.getWidth("beta");
     private static final float b1RawWidth = subFont.getWidth("b1");
@@ -70,7 +70,7 @@ implements IHudElement {
         int subColor = this.colorWithAlpha(primaryColor, alpha);
         int shadow = this.colorWithAlpha(shadowColor, alpha);
         try (Paint paint = new Paint()){
-            this.drawText(drawContext, paint, "L", drawX, centerY + 4.0f, logoFont, b1Width, textColor, shadow, true);
+            this.drawText(drawContext, paint, "N", drawX, centerY + 4.0f, logoFont, b1Width, textColor, shadow, true);
             drawX += logoCharWidth + 12.0f;
             this.drawText(drawContext, paint, "|", (drawX += 12.0f) - 13.0f, centerY, subFont, subLineHeight, subColor, shadow, true);
             float betaX = (drawX += separatorCharWidth + 12.0f) + (sep1Width - betaRawWidth) / 2.0f - 13.0f;

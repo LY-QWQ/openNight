@@ -170,20 +170,20 @@ public class MaterialClickGui extends Screen {
 
         FontRenderer brandIcon = MD3Theme.fontMaterial(22f);
         float iconX = px + 13f;
-        float iconY = py + 14f;
+        float iconY = py + 13f;
         RenderUtil.drawRoundedRect(gg.pose(), iconX - 5f, iconY - 5f, 30f, 30f, 10f,
                 MD3Theme.withAlpha(MD3Theme.PRIMARY_CONTAINER, a * 0.72f));
-        GlHelper.drawText("", iconX, iconY + 4f, brandIcon, MD3Theme.withAlpha(MD3Theme.PRIMARY, a));
+        GlHelper.drawText("", iconX+5f, iconY + 10f, brandIcon, MD3Theme.withAlpha(MD3Theme.PRIMARY, a));
 
         FontRenderer titleF = MD3Theme.fontTitle(1f);
         float tx = px + 51f;
         MD3Theme.text("Nilore", tx, py + 13f, titleF, MD3Theme.TEXT_HIGH, a);
 
         FontRenderer betaF = MD3Theme.fontLabel(1f);
-        float betaY = py + 34f;
-        RenderUtil.drawRoundedRect(gg.pose(), tx, betaY - 2f, 34f, 13f, 6.5f,
+        float betaY = py + 28f;
+        RenderUtil.drawRoundedRect(gg.pose(), tx, betaY - 1f, 24f, 13f, 6.5f, // 34
                 MD3Theme.withAlpha(MD3Theme.PRIMARY_CONTAINER, a * 0.52f));
-        MD3Theme.text("beta", tx + 6f, betaY + 1f, betaF, MD3Theme.PRIMARY, a * 0.92f);
+        MD3Theme.text("beta", tx + 6f, betaY+5f, betaF, MD3Theme.PRIMARY, a * 0.92f);
 
         RenderUtil.drawFilledRect(gg.pose(), px + 14f, py + 61f, SIDEBAR_W - 28f, 0.5f,
                 MD3Theme.withAlpha(MD3Theme.OUTLINE_VARIANT, a * 0.34f));
@@ -235,11 +235,11 @@ public class MaterialClickGui extends Screen {
 
         FontRenderer userIconF = MD3Theme.fontMaterial(15f);
         float uix = userX + 10f;
-        float uiy = userY + (USER_H - userIconF.getMetrics().capHeight()) / 2f;
+        float uiy = userY + (USER_H - userIconF.getMetrics().capHeight()) / 2f + 2f;
         GlHelper.drawText(MD3Theme.ICON_PERSON, uix, uiy, userIconF, MD3Theme.withAlpha(MD3Theme.TEXT_LOW, a));
 
         String username = Minecraft.getInstance().player != null ? Minecraft.getInstance().player.getGameProfile().getName() : "Player";
-        FontRenderer uf = MD3Theme.fontBody(1f);
+        FontRenderer uf = MD3Theme.fontPingfang(1f);
         float ux = userX + 31f;
         float uy = userY + (USER_H - uf.getMetrics().capHeight()) / 2f;
         MD3Theme.text(username, ux, uy, uf, MD3Theme.TEXT_MED, a);
@@ -278,7 +278,7 @@ public class MaterialClickGui extends Screen {
                 MD3Theme.withAlpha(MD3Theme.primary(selected), a));
 
         FontRenderer headF = MD3Theme.fontTitle(1f);
-        MD3Theme.text(MD3Theme.label(selected), dx + 38f, py + 15f, headF, MD3Theme.TEXT_HIGH, a);
+        MD3Theme.text(MD3Theme.label(selected), dx + 38f, py + 16f, headF, MD3Theme.TEXT_HIGH, a);
 
         FontRenderer countF = MD3Theme.fontLabel(1f);
         String countStr = activeCount + " active / " + totalCount;
@@ -359,7 +359,7 @@ public class MaterialClickGui extends Screen {
                 MD3Theme.withAlpha(on ? cp : MD3Theme.TEXT_DISABLED, a * (on ? 0.95f : 0.55f + 0.25f * hv)));
         FontRenderer nf = MD3Theme.fontBodyLarge(1f);
         int nc = on ? MD3Theme.TEXT_HIGH : MD3Theme.lerpColor(MD3Theme.TEXT_LOW, MD3Theme.TEXT_MED, hv);
-        MD3Theme.text(m.getName(), x + 24f, y + (h - nf.getMetrics().capHeight()) / 2f,
+        MD3Theme.text(m.getName(), x + 24f, y + (h - nf.getMetrics().capHeight()) / 2f + 2f,
                 nf, nc, a);
 
         String b = m.getBind().getName();
@@ -404,11 +404,11 @@ public class MaterialClickGui extends Screen {
         FontRenderer iconF = MD3Theme.fontMaterial(18f);
         RenderUtil.drawRoundedRect(gg.pose(), sx + 18f, py + 20f, 28f, 28f, 9f,
                 MD3Theme.withAlpha(focused.isEnabled() ? MD3Theme.container(selected) : MD3Theme.SURFACE_HIGHEST, pa * 0.82f));
-        GlHelper.drawText(MD3Theme.ICON_MODULE, sx + 28f, py + 33f, iconF,
+        GlHelper.drawText(MD3Theme.ICON_MODULE, sx + 28f, py + 34f, iconF,
                 MD3Theme.withAlpha(focused.isEnabled() ? cp : MD3Theme.TEXT_LOW, pa));
 
         FontRenderer tf = MD3Theme.fontTitleMedium(1f);
-        MD3Theme.text(focused.getName(), sx + 56f, py + 24f, tf, MD3Theme.TEXT_HIGH, pa);
+        MD3Theme.text(focused.getName(), sx + 56f, py + 26f, tf, MD3Theme.TEXT_HIGH, pa);
 
         FontRenderer sf = MD3Theme.fontLabel(1f);
         MD3Theme.text(focused.isEnabled() ? "Enabled" : "Disabled", sx + 56f, py + 39f, sf,
@@ -490,7 +490,7 @@ public class MaterialClickGui extends Screen {
         if (!searching && query.isEmpty()) {
             FontRenderer pf = MD3Theme.fontBody(1f);
             MD3Theme.text("Search modules...", tx,
-                    y + (SEARCH_H - pf.getMetrics().capHeight()) / 2f, pf, MD3Theme.TEXT_DISABLED, a);
+                    -2f+y + (SEARCH_H - pf.getMetrics().capHeight()) / 2f, pf, MD3Theme.TEXT_DISABLED, a);
         } else {
             FontRenderer qf = MD3Theme.fontBodyLarge(1f);
             float qy = y + (SEARCH_H - qf.getMetrics().capHeight()) / 2f;

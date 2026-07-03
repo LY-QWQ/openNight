@@ -34,16 +34,13 @@ public class MD3NumberRenderer implements MD3SettingRenderer {
                 MD3Theme.withAlpha(MD3Theme.lerpColor(MD3Theme.SURFACE_DIM, MD3Theme.SURFACE_CONTAINER, hv), alpha * (0.68f + 0.18f * hv)));
 
         FontRenderer lf = MD3Theme.fontBody(1f);
-        MD3Theme.text(ns.getName(), x + 10f, y + 8f, lf, MD3Theme.TEXT_MED, alpha);
+        MD3Theme.text(ns.getName(), x + 10f, y + 10f, lf, MD3Theme.TEXT_MED, alpha);
 
         FontRenderer vf = MD3Theme.fontLabel(1f);
         String val = formatVal(ns.getValue().doubleValue());
         float vw = GlHelper.getStringWidth(val, vf);
-        float chipW = vw + 12f, chipH = 15f;
-        float chipX = x + w - chipW - 9f, chipY = y + 6f;
-        RenderUtil.drawRoundedRect(gg.pose(), chipX, chipY, chipW, chipH, 5f,
-                MD3Theme.withAlpha(active ? (int)accent : MD3Theme.SURFACE_HIGHEST, alpha * (active ? 0.72f : 0.52f)));
-        MD3Theme.text(val, chipX + 6f, chipY + (chipH - vf.getMetrics().capHeight()) / 2f,
+        float valX = x + w - vw - 9f, valY = y + 9f;
+        MD3Theme.text(val, valX, valY,
                 vf, active ? MD3Theme.ON_PRIMARY : (int)accent, alpha * 0.9f);
 
         float trackY = y + h - 10f;
@@ -62,7 +59,7 @@ public class MD3NumberRenderer implements MD3SettingRenderer {
                     MD3Theme.withAlpha((int)accent, alpha));
         }
 
-        float thumbR = 4.8f + 0.8f * hv;
+        float thumbR = 3.6f + 0.6f * hv;
         float thumbX = trackX + trackW * fill;
         float thumbY = trackY + trackH / 2f;
         if (active || hv > 0.01f) {

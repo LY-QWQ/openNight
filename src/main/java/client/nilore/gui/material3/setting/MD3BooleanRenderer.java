@@ -40,7 +40,7 @@ public class MD3BooleanRenderer implements MD3SettingRenderer {
                 MD3Theme.withAlpha(bs.getValue() ? (int)accent : MD3Theme.TEXT_DISABLED, alpha * (bs.getValue() ? 0.86f : 0.5f + 0.22f * hv)));
 
         FontRenderer lf = MD3Theme.fontBody(0.92f);
-        float ly = y + (h - lf.getMetrics().capHeight()) / 2f;
+        float ly = y + (h - lf.getMetrics().capHeight()) / 2f + 2f;
         MD3Theme.text(bs.getName(), x + 24f, ly, lf, bs.getValue() ? MD3Theme.TEXT_HIGH : MD3Theme.TEXT_MED, alpha);
 
         float tw = 29f, th = 15f;

@@ -64,6 +64,16 @@ public class MusicPlayerHud extends HudElement {
     @Override
     public void onGlRender(GlRenderEvent glRenderEvent, float x, float y) {
         AudioPlayer player = MusicPlayer.AUDIO_PLAYER;
+
+        // Stop if not in a world (title screen, etc.)
+        if (mc.level == null) {
+            player.stop();
+            showAnim.animate(0.0, 0.3, Easings.EASE_OUT_POW3);
+            showAnim.tick();
+            this.setWidth(0);
+            this.setHeight(0);
+            return;
+        }
         boolean hasSong = player.getCurrentSong() != null && player.getState() != AudioPlayer.State.STOPPED;
 
         showAnim.animate(hasSong ? 1.0 : 0.0, 0.3, Easings.EASE_OUT_POW3);

@@ -41,7 +41,7 @@ public class MD3ModeRenderer implements MD3SettingRenderer {
                 MD3Theme.withAlpha(headerBg, alpha * (0.58f + 0.14f * of)));
 
         FontRenderer lf = MD3Theme.fontBody(0.92f);
-        MD3Theme.text(ms.getName(), x + 10f, y + (HEADER_H - lf.getMetrics().capHeight()) / 2f,
+        MD3Theme.text(ms.getName(), x + 10f, y + (HEADER_H - lf.getMetrics().capHeight()) / 2f + 2f,
                 lf, MD3Theme.TEXT_HIGH, alpha);
 
         FontRenderer vf = MD3Theme.fontLabel(1f);
@@ -54,7 +54,7 @@ public class MD3ModeRenderer implements MD3SettingRenderer {
         MD3Theme.text(curVal, chipX + 7f, chipY + (chipH - vf.getMetrics().capHeight()) / 2f,
                 vf, open ? MD3Theme.ON_PRIMARY : (int)accent, alpha * 0.9f);
         FontRenderer iconF = MD3Theme.fontMaterial(12f);
-        GlHelper.drawText(open ? "" : "", chipX + chipW - 16f,
+        GlHelper.drawText(open ? "" : "", chipX + chipW - 10f,
                 chipY + (chipH - iconF.getMetrics().capHeight()) / 2f + 2f,
                 iconF, MD3Theme.withAlpha(open ? MD3Theme.ON_PRIMARY : MD3Theme.TEXT_LOW, alpha));
 

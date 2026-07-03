@@ -121,10 +121,10 @@ public class ModuleListHud extends HudElement {
 
     private static final float MIN_VISIBLE_EDGE = 4.0f;
     private static final float DEFAULT_ROW_HEIGHT = 12.5f;
-    private static final float DEFAULT_PADDING_X = 3.3f;
-    private static final float DEFAULT_PADDING_Y = 3.0f;
+    private static final float DEFAULT_PADDING_X = 3f;
+    private static final float DEFAULT_PADDING_Y = 3.5f;
     private static final float DEFAULT_ROW_SPACING = 0.0f;
-    private static final float DEFAULT_RADIUS = 0f;
+    private static final float DEFAULT_RADIUS = 2f;
     private static final float SLIDE_DISTANCE = 18.0f;
 
     // Layout settings
@@ -180,7 +180,7 @@ public class ModuleListHud extends HudElement {
     public void registerSettings() {
         // Layout settings
         this.sideMode = new ModeSetting("Side Mode", "Auto", "Auto", "Left", "Right").withDefault("Auto");
-        this.breakEnabled = new BooleanSetting("Break", true);
+        this.breakEnabled = new BooleanSetting("Break", false);
         this.showSuffix = new BooleanSetting("Show Suffix", true);
         this.suffixColorEnabled = new BooleanSetting("Suffix Color", true);
         this.suffixLowercaseEnabled = new BooleanSetting("Suffix Lowercase", false);
@@ -203,7 +203,7 @@ public class ModuleListHud extends HudElement {
         this.textColorMode = new ModeSetting("Text Color Mode", "Gradient", "Solid").withDefault("Gradient");
         this.gradientTheme = new ModeSetting("Gradient Theme", "Rainbow",
                 "Rainbow", "Aurora", "Sunset", "Ocean", "Cotton Candy", "Lavender", "Peach", "Mint", "Cyberpunk", "Drift")
-                .withDefault("Lavender");
+                .withDefault("Cotton Candy");
         this.rainbowSpeed = new NumberSetting("Rainbow Speed", 5.0f, 1.0f, 240.0f, 1.0f);
         this.rainbowSaturation = new NumberSetting("Rainbow Saturation", 90.0f, 0.0f, 100.0f, 1.0f);
         this.rainbowBrightness = new NumberSetting("Rainbow Brightness", 100.0f, 10.0f, 100.0f, 1.0f);
@@ -352,8 +352,8 @@ public class ModuleListHud extends HudElement {
     private void renderRows(DrawContext drawContext, List<AnimatedRow> rows, float x, float y, float width, Alignment alignment) {
         List<RowRenderLayout> layouts = this.computeRowLayouts(rows, x, y, width, alignment);
         boolean broken = this.breakEnabled.getValue();
-        for (RowRenderLayout layout : layouts) {
-            this.renderRow(drawContext, rows, layout, broken, alignment);
+        for (int i = 0; i < layouts.size(); i++) {
+            this.renderRow(drawContext, rows, layouts.get(i), broken, alignment, i, layouts.size());
         }
     }
 
@@ -388,8 +388,8 @@ public class ModuleListHud extends HudElement {
     }
 
     private void renderRow(DrawContext drawContext, List<AnimatedRow> rows, RowRenderLayout layout,
-                           boolean broken, Alignment alignment) {
-        RoundedRectangle bounds = this.rowBounds(layout, broken, alignment);
+                           boolean broken, Alignment alignment, int rowIndex, int rowCount) {
+        RoundedRectangle bounds = this.rowBounds(layout, broken, alignment, rowIndex, rowCount);
         int rowColor = this.colorForPosition(layout.rowIndex, 0.5f, Math.max(1, rows.size() - 1));
 
         if (this.backgroundEnabled.getValue()) {
@@ -409,17 +409,24 @@ public class ModuleListHud extends HudElement {
         drawContext.restore();
     }
 
-    private RoundedRectangle rowBounds(RowRenderLayout layout, boolean broken, Alignment alignment) {
+    private RoundedRectangle rowBounds(RowRenderLayout layout, boolean broken, Alignment alignment, int rowIndex, int rowCount) {
         float radius = this.backgroundRadius.getValue().floatValue();
-        if (broken) {
+        if (broken || radius <= 0.0f) {
             return RoundedRectangle.ofXYWHR(layout.x, layout.y, layout.width, layout.height, radius);
         }
-        if (alignment == Alignment.RIGHT) {
-            return RoundedRectangle.ofXYWHRadii(layout.x, layout.y, layout.width, layout.visualHeight(false),
-                    new float[]{0.0f, 0.0f, 0.0f, radius});
+        boolean largeRadius = radius > 4.0f;
+        float tl, tr, br, bl;
+        if (alignment == Alignment.LEFT) {
+            tl = 0; tr = largeRadius ? radius : 0; br = radius; bl = 0;
+            if (rowIndex == 0) { tl = radius; tr = radius; }
+            if (rowIndex == rowCount - 1) { bl = radius; }
+        } else {
+            tl = largeRadius ? radius : 0; tr = 0; br = 0; bl = radius;
+            if (rowIndex == 0) { tl = radius; tr = radius; }
+            if (rowIndex == rowCount - 1) { br = radius; }
         }
         return RoundedRectangle.ofXYWHRadii(layout.x, layout.y, layout.width, layout.visualHeight(false),
-                new float[]{0.0f, 0.0f, radius, 0.0f});
+                new float[]{tl, tr, br, bl});
     }
 
     private RoundedRectangle expandedGlowBounds(RoundedRectangle bounds, float spread) {
