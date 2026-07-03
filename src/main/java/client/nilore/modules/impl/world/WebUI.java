@@ -30,7 +30,7 @@ public class WebUI extends Module {
     public void onEnable() {
         try {
             this.httpServer = this.createHttpServer();
-            ChatUtil.print("WebUI started at http://127.0.0.1:8089");
+            ChatUtil.print("§dWebUI §7started at §fhttp://127.0.0.1:8089");
             try {
                 System.setProperty("java.awt.headless", "false");
                 if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
@@ -51,7 +51,7 @@ public class WebUI extends Module {
         if (this.httpServer != null) {
             this.httpServer.stop(0);
             this.httpServer = null;
-            ChatUtil.print("WebUI stopped");
+            ChatUtil.print("§cNilore §7Panel stopped");
         }
     }
 
