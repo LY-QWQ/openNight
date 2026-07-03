@@ -14,6 +14,8 @@ public class ClickGuiModule
 extends Module {
     public static final Logger LOGGER = LogManager.getLogger(ClickGuiModule.class);
     public final ModeSetting styleSetting = new ModeSetting("Mode", "Old", "Panel", "New", "Material3").withDefault("Old");
+    public final ModeSetting materialTheme = new ModeSetting("Material Theme", "Dark", "Light")
+            .withVisibility(() -> this.styleSetting.is("Material3"));
 
     public ClickGuiModule() {
         super("ClickGui", Category.RENDER, 344);

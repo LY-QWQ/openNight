@@ -19,6 +19,7 @@ import client.nilore.gui.material3.setting.MD3SettingRegistry;
 import client.nilore.gui.panel.setting.NumberSettingRenderer;
 import client.nilore.modules.Category;
 import client.nilore.modules.Module;
+import client.nilore.modules.impl.render.ClickGuiModule;
 import client.nilore.render.DrawContext;
 import client.nilore.render.FontRenderer;
 import client.nilore.render.Paint;
@@ -111,6 +112,7 @@ public class MaterialClickGui extends Screen {
 
     public void render(@Nonnull GuiGraphics gg, int mx, int my, float pt) {
         LerpUtil.update();
+        syncTheme();
         tickState();
         if (state == State.CLOSED && openT <= 0f) return;
 
@@ -167,18 +169,18 @@ public class MaterialClickGui extends Screen {
                 MD3Theme.withAlpha(MD3Theme.OUTLINE_VARIANT, a * 0.48f));
 
         FontRenderer brandIcon = MD3Theme.fontMaterial(22f);
-        float iconX = px + 18f;
-        float iconY = py + 19f;
+        float iconX = px + 13f;
+        float iconY = py + 14f;
         RenderUtil.drawRoundedRect(gg.pose(), iconX - 5f, iconY - 5f, 30f, 30f, 10f,
                 MD3Theme.withAlpha(MD3Theme.PRIMARY_CONTAINER, a * 0.72f));
-        GlHelper.drawText("", iconX + 5f, iconY + 9f, brandIcon, MD3Theme.withAlpha(MD3Theme.PRIMARY, a));
+        GlHelper.drawText("", iconX, iconY + 4f, brandIcon, MD3Theme.withAlpha(MD3Theme.PRIMARY, a));
 
         FontRenderer titleF = MD3Theme.fontTitle(1f);
-        float tx = px + 56f;
-        MD3Theme.text("Nilore", tx, py + 18f, titleF, MD3Theme.TEXT_HIGH, a);
+        float tx = px + 51f;
+        MD3Theme.text("Nilore", tx, py + 13f, titleF, MD3Theme.TEXT_HIGH, a);
 
         FontRenderer betaF = MD3Theme.fontLabel(1f);
-        float betaY = py + 39f;
+        float betaY = py + 34f;
         RenderUtil.drawRoundedRect(gg.pose(), tx, betaY - 2f, 34f, 13f, 6.5f,
                 MD3Theme.withAlpha(MD3Theme.PRIMARY_CONTAINER, a * 0.52f));
         MD3Theme.text("beta", tx + 6f, betaY + 1f, betaF, MD3Theme.PRIMARY, a * 0.92f);
@@ -281,7 +283,7 @@ public class MaterialClickGui extends Screen {
         FontRenderer countF = MD3Theme.fontLabel(1f);
         String countStr = activeCount + " active / " + totalCount;
         float countW = GlHelper.getStringWidth(countStr, countF) + 14f;
-        RenderUtil.drawRoundedRect(gg.pose(), dx + listW - countW - 12f, py + 13f, countW, 18f, 9f,
+        RenderUtil.drawRoundedRect(gg.pose(), dx + listW - countW - 12f, py + 10f, countW, 18f, 9f,
                 MD3Theme.withAlpha(MD3Theme.SURFACE_CONTAINER, a * 0.82f));
         MD3Theme.text(countStr, dx + listW - countW - 5f, py + 17f, countF, MD3Theme.TEXT_LOW, a);
 
@@ -406,7 +408,7 @@ public class MaterialClickGui extends Screen {
                 MD3Theme.withAlpha(focused.isEnabled() ? cp : MD3Theme.TEXT_LOW, pa));
 
         FontRenderer tf = MD3Theme.fontTitleMedium(1f);
-        MD3Theme.text(focused.getName(), sx + 56f, py + 18f, tf, MD3Theme.TEXT_HIGH, pa);
+        MD3Theme.text(focused.getName(), sx + 56f, py + 24f, tf, MD3Theme.TEXT_HIGH, pa);
 
         FontRenderer sf = MD3Theme.fontLabel(1f);
         MD3Theme.text(focused.isEnabled() ? "Enabled" : "Disabled", sx + 56f, py + 39f, sf,
@@ -760,6 +762,15 @@ public class MaterialClickGui extends Screen {
                 ? (int) NiloreClient.instance.getModuleManager().getModules().stream()
                 .filter(m -> m.getCategory() == category).count()
                 : 0;
+    }
+
+    private void syncTheme() {
+        try {
+            ClickGuiModule clickGui = NiloreClient.instance.getModuleManager().getModule(ClickGuiModule.class);
+            MD3Theme.useLight(clickGui.materialTheme.is("Light"));
+        } catch (Exception ignored) {
+            MD3Theme.useLight(false);
+        }
     }
 
     private void doSearch() {
