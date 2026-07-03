@@ -72,7 +72,7 @@ extends AntiKBMode {
 
     private void log(String message) {
         if (AntiKB.INSTANCE.log.getValue()) {
-            log(message);
+            ChatUtil.print(message);
         }
     }
 
