@@ -32,6 +32,13 @@ import client.nilore.event.impl.TickEvent;
 import client.nilore.event.impl.UpdateHeldItemEvent;
 import client.nilore.modules.Category;
 import client.nilore.modules.Module;
+import client.nilore.render.FontPresets;
+import client.nilore.render.FontRenderer;
+import client.nilore.render.Paint;
+import client.nilore.render.Rectangle;
+import client.nilore.render.Renderer;
+import client.nilore.render.RoundedRectangle;
+import client.nilore.utils.animation.SpringAnimation;
 import client.nilore.settings.impl.BooleanSetting;
 import client.nilore.settings.impl.ModeSetting;
 import client.nilore.settings.impl.NumberSetting;
@@ -72,7 +79,19 @@ public class Scaffold extends Module {
     public int velocityDelay = 0;
     public boolean wantsRotation = false;
 
+    public int startBlockCount = -1;
+
     private int oldSlot;
+
+    // ---- shelf HUD ----
+    private static final FontRenderer shelfLabelFont = FontPresets.axiformaBold(12);
+    private static final FontRenderer shelfBpsFont = FontPresets.axiformaBold(13);
+    private static final FontRenderer shelfBlocksFont = FontPresets.axiformaBold(12);
+    private static final float SHELF_W = 230f;
+    private static final float SHELF_H = 14f;
+    private static final float SHELF_RADIUS = 7f;
+    private final SpringAnimation shelfProgress = new SpringAnimation(300f, 1f, 25f, 1f);
+    private long hudLastFrameTime = 0L;
     private PlacementTarget currentPlacement;
     private Vec3 hitVecSource;
     private BlockPos lastPlacedBlock;
@@ -118,6 +137,7 @@ public class Scaffold extends Module {
             this.wantsRotation = false;
 
             this.jumpHeld = false;
+            this.startBlockCount = this.getBlockSlot();
         }
         super.onEnable();
     }
@@ -409,19 +429,88 @@ public class Scaffold extends Module {
     @EventTarget
     public void onRender2D(Render2DEvent event) {
         if (mc.player == null || mc.level == null) return;
-        int blockCount = this.getBlockSlot();
-        if (blockCount == 0) return;
-        String countText = String.valueOf(blockCount);
-        String suffix = " Blocks";
-        GuiGraphics graphics = event.guiGraphics();
-        int width = mc.getWindow().getGuiScaledWidth();
-        int height = mc.getWindow().getGuiScaledHeight();
-        float centerX = width / 2.0f;
-        float y = height / 2.0f - 20.0f;
-        int textWidth = mc.font.width(countText + suffix);
-        int x = (int) (centerX - textWidth / 2.0f);
-        graphics.drawString(mc.font, countText, x, (int) y, -11890462);
-        graphics.drawString(mc.font, suffix, x + mc.font.width(countText), (int) y, -1);
+        renderShelfHud(event);
+    }
+
+    private void renderShelfHud(Render2DEvent event) {
+        if (mc.player == null) return;
+
+        int totalBlocks = this.getBlockSlot();
+        if (totalBlocks == 0) return;
+
+        // ---- delta time ----
+        long now = System.currentTimeMillis();
+        if (hudLastFrameTime == 0L) hudLastFrameTime = now;
+        float deltaSec = Math.min((now - hudLastFrameTime) / 1000f, 0.05f);
+        hudLastFrameTime = now;
+
+        // ---- progress: current / max(startBlockCount, 64) ----
+        int maxBlocks = Math.max(startBlockCount < 0 ? 0 : startBlockCount, 64);
+        float raw = maxBlocks > 0 ? (float) totalBlocks / (float) maxBlocks : 0f;
+        float target = Math.min(1f, Math.max(0f, raw));
+        shelfProgress.setTargetValue(target);
+        shelfProgress.update(deltaSec);
+        float animProg = shelfProgress.getValue();
+
+        // ---- strings ----
+        String labelStr = "Scaffold";
+        String bpsStr = String.format("%.1f b/s", MovementUtil.getSpeedBps());
+        String blocksStr = totalBlocks + "blocks";
+
+        float labelW = shelfLabelFont.getWidth(labelStr);
+        float bpsW = shelfBpsFont.getWidth(bpsStr);
+        float blocksW = shelfBlocksFont.getWidth(blocksStr);
+        float labelH = shelfLabelFont.getMetrics().capHeight();
+        float bpsH = shelfBpsFont.getMetrics().capHeight();
+        float blocksH = shelfBlocksFont.getMetrics().capHeight();
+
+        // ---- screen position ----
+        float sw = mc.getWindow().getGuiScaledWidth();
+        float sh = mc.getWindow().getGuiScaledHeight();
+
+        // progress bar — centered, 115x2
+        float progBarW = 115f;
+        float progBarH = 2f;
+        float progBarX = (sw - progBarW) / 2f;
+        float progBarY = sh / 2f + 12f;
+
+        // text aligned to progress bar edges
+        float padLeft = 0f;
+        float padRight = 0f;
+        float bpsToBlocksGap = 10f;
+
+        float blocksX = progBarX + progBarW - padRight - blocksW;
+        float bpsX = blocksX - bpsToBlocksGap - bpsW;
+        float labelX = progBarX + padLeft;
+
+        float textY = progBarY - 10f + 8f; // ~2px above the bar
+
+        Renderer.render(event.guiGraphics(), drawContext -> {
+            try (Paint paint = new Paint()) {
+                // 1. "Scaffold" label (left)
+                paint.setColor(Color.WHITE.getRGB());
+                drawContext.drawString(labelStr, labelX, textY, shelfLabelFont, paint);
+
+                // 2. "X blocks" (right)
+                drawContext.drawString(blocksStr, blocksX, textY, shelfBlocksFont, paint);
+
+                // 3. "X.X bps" (to the left of blocks, 10px gap)
+                drawContext.drawString(bpsStr, bpsX, textY, shelfBpsFont, paint);
+
+                // 4. progress bar — gray track
+                paint.setColor(0x80333333);
+                drawContext.drawRoundedRect(RoundedRectangle.ofXYWHR(progBarX, progBarY, progBarW, progBarH, 1f), paint);
+
+                // 5. progress bar — white fill
+                if (animProg > 0.01f) {
+                    drawContext.save();
+                    drawContext.clip(Rectangle.ofXYWH(progBarX, progBarY, progBarW * animProg, progBarH));
+                    paint.setColor(0xFFFFFFFF);
+                    drawContext.drawRoundedRect(RoundedRectangle.ofXYWHR(progBarX, progBarY, progBarW, progBarH, 1f), paint);
+                    drawContext.restore();
+                }
+            }
+        });
     }
 
     private int getBlockSlot() {
