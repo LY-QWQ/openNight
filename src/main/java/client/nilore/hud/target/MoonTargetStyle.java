@@ -132,11 +132,11 @@ public class MoonTargetStyle
         float belowNameY = nameY + nameAscent + 4.0f;
         PoseStack poseStack = render2DEvent.guiGraphics().pose();
         poseStack.pushPose();
-        RenderUtil.drawBlurredRect(poseStack, x, y, 120.0f, 43.0f, 5.0f, 15.0f, 0.95f * fade, 0);
+        RenderUtil.drawBlurredRect(poseStack, x, y - 2f, 120.0f, 45.0f, 5.0f, 15.0f, 0.95f * fade, 0);
         poseStack.popPose();
         Renderer.renderConsumer((drawContext -> {
             this.panelPaint.setColor(new Color(0, 0, 0, (int)((float)COLOR_PANEL_BG.getAlpha() * fade)).getRGB());
-            GlHelper.drawRoundedRect(x, y, 120.0f, 43.0f, 5.0f, this.panelPaint);
+            GlHelper.drawRoundedRect(x, y - 2f, 120.0f, 45.0f, 5.0f, this.panelPaint);
             if (hasTarget && livingEntity.hurtTime > this.lastHurtTime) {
                 this.scaleAnim.setCurrentValue(0.7f);
                 this.scaleAnim.animate(1.0, 1.5, Easings.EASE_OUT_ELASTIC);

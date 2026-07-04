@@ -368,7 +368,11 @@ public class ModuleListHud extends HudElement {
             try (Paint paint = new Paint()) {
                 int alpha = Math.round(this.backgroundAlpha.getValue().floatValue() * layout.progress);
                 paint.setColor((alpha << 24) | 0x000000);
-                drawContext.drawRoundedRect(bounds, paint);
+                if (this.backgroundRadius.getValue().floatValue() <= 0.0f) {
+                    drawContext.drawRectXYWH(layout.x, layout.y, layout.width, layout.height, paint);
+                } else {
+                    drawContext.drawRoundedRect(bounds, paint);
+                }
             }
         }
         if (this.sideLineEnabled.getValue()) {

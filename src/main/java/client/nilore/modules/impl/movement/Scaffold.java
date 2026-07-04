@@ -86,7 +86,7 @@ public class Scaffold extends Module {
     // ---- shelf HUD ----
     private static final FontRenderer shelfLabelFont = FontPresets.axiformaBold(12);
     private static final FontRenderer shelfBpsFont = FontPresets.axiformaBold(13);
-    private static final FontRenderer shelfBlocksFont = FontPresets.axiformaBold(12);
+    private static final FontRenderer shelfBlocksFont = FontPresets.axiformaBold(13);
     private static final float SHELF_W = 230f;
     private static final float SHELF_H = 14f;
     private static final float SHELF_RADIUS = 7f;
@@ -492,10 +492,10 @@ public class Scaffold extends Module {
                 drawContext.drawString(labelStr, labelX, textY, shelfLabelFont, paint);
 
                 // 2. "X blocks" (right)
-                drawContext.drawString(blocksStr, blocksX, textY, shelfBlocksFont, paint);
+                drawContext.drawString(blocksStr, blocksX, textY-1f, shelfBlocksFont, paint);
 
                 // 3. "X.X bps" (to the left of blocks, 10px gap)
-                drawContext.drawString(bpsStr, bpsX, textY, shelfBpsFont, paint);
+                drawContext.drawString(bpsStr, bpsX, textY-1f, shelfBpsFont, paint);
 
                 // 4. progress bar — gray track
                 paint.setColor(0x80333333);

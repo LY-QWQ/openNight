@@ -6,7 +6,10 @@
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
       "Bash(git push *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(./gradlew clean *)",
+      "Bash(./gradlew reobfJar)",
+      "Bash(git commit -m 'fix: MoonTargetStyle 背景板上移+加高, Scaffold HUD 字体微调, ModuleListHud 圆角修复 *)"
     ]
   }
 }
