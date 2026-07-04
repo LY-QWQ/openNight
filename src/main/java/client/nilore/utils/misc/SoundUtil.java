@@ -3,15 +3,10 @@ package client.nilore.utils.misc;
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
 import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.Clip;
-import javax.sound.sampled.Control;
 import javax.sound.sampled.FloatControl;
-import javax.sound.sampled.LineUnavailableException;
-import javax.sound.sampled.UnsupportedAudioFileException;
 import javax.swing.JOptionPane;
 import client.nilore.manager.ConfigManager;
 import client.nilore.utils.math.MathUtil;
@@ -24,21 +19,22 @@ public final class SoundUtil {
     public static void playSound(String fileName, float gain) {
         File file = new File(ConfigManager.CONFIG_DIR, fileName);
         if (!file.exists()) {
-            System.out.println("Failed to find target file!");
+            System.out.println("SoundUtil: file not found - " + file.getAbsolutePath());
             return;
         }
         new Thread(() -> {
-            try {
-                AudioInputStream audioInputStream = AudioSystem.getAudioInputStream(new BufferedInputStream(new FileInputStream(file)));
+            try (BufferedInputStream bis = new BufferedInputStream(new FileInputStream(file));
+                 AudioInputStream audioIn = AudioSystem.getAudioInputStream(bis)) {
                 Clip clip = AudioSystem.getClip();
-                clip.open(audioInputStream);
+                clip.open(audioIn);
+                try {
+                    FloatControl gainControl = (FloatControl) clip.getControl(FloatControl.Type.MASTER_GAIN);
+                    gainControl.setValue(gain);
+                } catch (IllegalArgumentException ignored) {}
                 clip.start();
-                FloatControl floatControl = (FloatControl)clip.getControl(FloatControl.Type.MASTER_GAIN);
-                floatControl.setValue(gain);
-                clip.start();
-            } catch (IOException | LineUnavailableException | UnsupportedAudioFileException ex) {
-                ex.printStackTrace();
+            } catch (Exception ex) {
+                System.out.println("SoundUtil: failed to play " + fileName + " - " + ex.getMessage());
             }
-        }, "Netty Client IO #" + MathUtil.randomInt(0, 100)).start();
+        }, "SoundPlayer-" + MathUtil.randomInt(0, 100)).start();
     }
 }

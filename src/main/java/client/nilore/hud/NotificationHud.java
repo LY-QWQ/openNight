@@ -26,6 +26,7 @@ import client.nilore.render.Renderer;
 import client.nilore.render.RoundedRectangle;
 import client.nilore.settings.impl.NumberSetting;
 import client.nilore.utils.math.LerpUtil;
+import client.nilore.utils.misc.SoundUtil;
 import client.nilore.utils.render.ColorUtil;
 import client.nilore.utils.render.TextureUtil;
 
@@ -77,6 +78,11 @@ public class NotificationHud extends HudElement {
         ));
         while (notifications.size() > maxNotifications.getValue().intValue()) {
             notifications.remove(0);
+        }
+        // 播放开关提示音（只在 NotificationHud 启用时播放）
+        if (this.isEnabled()) {
+            String soundName = event.enabled() ? "Enabled.wav" : "Disabled.wav";
+            SoundUtil.playSound(soundName, 0.0f);
         }
     }
 

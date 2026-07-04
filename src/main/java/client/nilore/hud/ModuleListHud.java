@@ -120,7 +120,7 @@ public class ModuleListHud extends HudElement {
     }
 
     private static final float MIN_VISIBLE_EDGE = 4.0f;
-    private static final float DEFAULT_ROW_HEIGHT = 12.5f;
+    private static final float DEFAULT_ROW_HEIGHT = 13.5f;
     private static final float DEFAULT_PADDING_X = 3f;
     private static final float DEFAULT_PADDING_Y = 3.5f;
     private static final float DEFAULT_ROW_SPACING = 0.0f;
@@ -141,6 +141,7 @@ public class ModuleListHud extends HudElement {
     // Background settings
     private BooleanSetting backgroundEnabled;
     private NumberSetting backgroundRadius;
+    private NumberSetting backgroundAlpha;
 
     // Side line settings
     private BooleanSetting sideLineEnabled;
@@ -192,6 +193,7 @@ public class ModuleListHud extends HudElement {
         // Background settings
         this.backgroundEnabled = new BooleanSetting("Background", true);
         this.backgroundRadius = new NumberSetting("Background Radius", DEFAULT_RADIUS, 0.0f, 10.0f, 0.25f);
+        this.backgroundAlpha = new NumberSetting("Background Alpha", 80.0f, 0.0f, 255.0f, 1.0f);
 
         // Side line settings
         this.sideLineEnabled = new BooleanSetting("Side Line", false);
@@ -211,7 +213,7 @@ public class ModuleListHud extends HudElement {
 
         // Register all settings
         this.registerSetting(sideMode, breakEnabled, showSuffix, suffixColorEnabled, suffixLowercaseEnabled,
-                paddingX, paddingY, rowHeight, rowSpacing, backgroundEnabled, backgroundRadius,
+                paddingX, paddingY, rowHeight, rowSpacing, backgroundEnabled, backgroundRadius, backgroundAlpha,
                 sideLineEnabled, sideLineMode, sideLineWidth,
                 useClientColor, textColorMode, gradientTheme, rainbowSpeed, rainbowSaturation, rainbowBrightness, rainbowOffset);
     }
@@ -357,6 +359,28 @@ public class ModuleListHud extends HudElement {
         }
     }
 
+    private void renderRow(DrawContext drawContext, List<AnimatedRow> rows, RowRenderLayout layout,
+                           boolean broken, Alignment alignment, int rowIndex, int rowCount) {
+        RoundedRectangle bounds = this.rowBounds(layout, broken, alignment, rowIndex, rowCount);
+        int rowColor = this.colorForPosition(layout.rowIndex, 0.5f, Math.max(1, rows.size() - 1));
+
+        if (this.backgroundEnabled.getValue()) {
+            try (Paint paint = new Paint()) {
+                int alpha = Math.round(this.backgroundAlpha.getValue().floatValue() * layout.progress);
+                paint.setColor((alpha << 24) | 0x000000);
+                drawContext.drawRoundedRect(bounds, paint);
+            }
+        }
+        if (this.sideLineEnabled.getValue()) {
+            this.drawSideLine(drawContext, bounds, Argb.withAlpha(rowColor, layout.progress), alignment, broken);
+        }
+        drawContext.save();
+        drawContext.clipRoundedRect(bounds, true);
+        this.drawModuleName(layout.row.name, layout.x, layout.y, layout.width, layout.fullHeight,
+                layout.rowIndex, rows.size(), layout.progress, alignment);
+        drawContext.restore();
+    }
+
     private List<RowRenderLayout> computeRowLayouts(List<AnimatedRow> rows, float x, float y, float width, Alignment alignment) {
         List<RowRenderLayout> layouts = new ArrayList<>();
         float cursorY = y;
@@ -385,28 +409,6 @@ public class ModuleListHud extends HudElement {
             layouts.get(i).linkTo(layouts.get(i + 1));
         }
         return layouts;
-    }
-
-    private void renderRow(DrawContext drawContext, List<AnimatedRow> rows, RowRenderLayout layout,
-                           boolean broken, Alignment alignment, int rowIndex, int rowCount) {
-        RoundedRectangle bounds = this.rowBounds(layout, broken, alignment, rowIndex, rowCount);
-        int rowColor = this.colorForPosition(layout.rowIndex, 0.5f, Math.max(1, rows.size() - 1));
-
-        if (this.backgroundEnabled.getValue()) {
-            try (Paint paint = new Paint()) {
-                int alpha = Math.round(80 * layout.progress);
-                paint.setColor((alpha << 24) | 0x000000);
-                drawContext.drawRoundedRect(bounds, paint);
-            }
-        }
-        if (this.sideLineEnabled.getValue()) {
-            this.drawSideLine(drawContext, bounds, Argb.withAlpha(rowColor, layout.progress), alignment, broken);
-        }
-        drawContext.save();
-        drawContext.clipRoundedRect(bounds, true);
-        this.drawModuleName(layout.row.name, layout.x, layout.y, layout.width, layout.fullHeight,
-                layout.rowIndex, rows.size(), layout.progress, alignment);
-        drawContext.restore();
     }
 
     private RoundedRectangle rowBounds(RowRenderLayout layout, boolean broken, Alignment alignment, int rowIndex, int rowCount) {
