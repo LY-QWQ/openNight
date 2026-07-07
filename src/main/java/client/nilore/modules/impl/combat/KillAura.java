@@ -531,7 +531,6 @@ public class KillAura extends Module {
         double dist = vec3.distanceTo(mc.player.getEyePosition());
         float aimRange = this.aimRange.getValue().floatValue();
         if (dist <= aimRange) {
-            // 当前就在瞄准范围内，直接通过
         } else if (dist > 5.0) {
             return false;
         } else {
@@ -560,8 +559,7 @@ public class KillAura extends Module {
         }
         double enemyDelayTicks = Math.min(enemyDelayMs / 50.0, this.enemyDelayThreshold.getValue().doubleValue());
 
-        // 固定 3tick 预测 + 延迟 tick
-        double totalTicks = 3.0 + selfDelayTicks + enemyDelayTicks;
+        double totalTicks = 2.0 + selfDelayTicks + enemyDelayTicks;
 
         double playerVelX = mc.player.getX() - mc.player.xOld;
         double playerVelZ = mc.player.getZ() - mc.player.zOld;

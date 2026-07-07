@@ -133,6 +133,7 @@ public class ModuleListHud extends HudElement {
     private BooleanSetting showSuffix;
     private BooleanSetting suffixColorEnabled;
     private BooleanSetting suffixLowercaseEnabled;
+    private BooleanSetting important;
     private NumberSetting paddingX;
     private NumberSetting paddingY;
     private NumberSetting rowHeight;
@@ -185,6 +186,7 @@ public class ModuleListHud extends HudElement {
         this.showSuffix = new BooleanSetting("Show Suffix", true);
         this.suffixColorEnabled = new BooleanSetting("Suffix Color", true);
         this.suffixLowercaseEnabled = new BooleanSetting("Suffix Lowercase", false);
+        this.important = new BooleanSetting("Important", false);
         this.paddingX = new NumberSetting("Padding X", DEFAULT_PADDING_X, 0.0f, 12.0f, 0.25f);
         this.paddingY = new NumberSetting("Padding Y", DEFAULT_PADDING_Y, 0.0f, 8.0f, 0.25f);
         this.rowHeight = new NumberSetting("Row Height", DEFAULT_ROW_HEIGHT, 9.0f, 24.0f, 0.25f);
@@ -213,6 +215,7 @@ public class ModuleListHud extends HudElement {
 
         // Register all settings
         this.registerSetting(sideMode, breakEnabled, showSuffix, suffixColorEnabled, suffixLowercaseEnabled,
+                important,
                 paddingX, paddingY, rowHeight, rowSpacing, backgroundEnabled, backgroundRadius, backgroundAlpha,
                 sideLineEnabled, sideLineMode, sideLineWidth,
                 useClientColor, textColorMode, gradientTheme, rainbowSpeed, rainbowSaturation, rainbowBrightness, rainbowOffset);
@@ -220,8 +223,13 @@ public class ModuleListHud extends HudElement {
 
     private List<AnimatedRow> updateRows() {
         FontRenderer font = FontPresets.pingfang(16.0f);
+        boolean importantOnly = this.important.getValue();
         for (Module module : NiloreClient.getInstance().getModuleManager().getModules()) {
             if (module == this || module.getName().isEmpty() || module.isHiddenInModuleList()) {
+                this.rowStates.remove(module);
+                continue;
+            }
+            if (importantOnly && module.getCategory() == client.nilore.modules.Category.RENDER) {
                 this.rowStates.remove(module);
                 continue;
             }

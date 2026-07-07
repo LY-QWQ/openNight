@@ -1,5 +1,6 @@
 package client.nilore.hud;
 
+import client.nilore.settings.impl.BooleanSetting;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.BufferUploader;
@@ -47,6 +48,7 @@ public class NotificationHud extends HudElement {
     private final NumberSetting margin = new NumberSetting("Margin", 8.0f, 0.0f, 100.0f, 1.0f);
     private final NumberSetting duration = new NumberSetting("Duration (ms)", 900, 500, 10000, 100);
     private final NumberSetting maxNotifications = new NumberSetting("Max Notifications", 7, 1, 10, 1);
+    private final BooleanSetting needSound = new BooleanSetting("Sound",true);
 
     private final List<NotificationEntry> notifications = new ArrayList<>();
 
@@ -79,8 +81,7 @@ public class NotificationHud extends HudElement {
         while (notifications.size() > maxNotifications.getValue().intValue()) {
             notifications.remove(0);
         }
-        // 播放开关提示音（只在 NotificationHud 启用时播放）
-        if (this.isEnabled()) {
+        if (this.isEnabled() && needSound.getValue()) {
             String soundName = event.enabled() ? "Enabled.wav" : "Disabled.wav";
             SoundUtil.playSound(soundName, 0.0f);
         }
