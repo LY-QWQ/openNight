@@ -24,6 +24,16 @@ public class Critical
         super("Critical", Category.COMBAT);
         INSTANCE = this;
     }
+    @Override
+    public void onEnable() {
+        super.onEnable();
+    }
+
+    @Override
+    public void onDisable() {
+        super.onDisable();
+    }
+
 
     @EventTarget
     public void onTick(TickEvent tickEvent) {

@@ -64,7 +64,7 @@ public class NotificationHud extends HudElement {
 
     @Override
     public void registerSettings() {
-        this.registerSetting(margin, duration, maxNotifications);
+        this.registerSetting(margin, duration, maxNotifications, needSound);
     }
 
     @EventTarget
