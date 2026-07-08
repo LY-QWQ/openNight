@@ -483,19 +483,19 @@ public class Scaffold extends Module {
         float bpsX = blocksX - bpsToBlocksGap - bpsW;
         float labelX = progBarX + padLeft;
 
-        float textY = progBarY - 10f + 8f; // ~2px above the bar
+        float textY = progBarY - 3f; // ~2px above the bar
 
         Renderer.render(event.guiGraphics(), drawContext -> {
             try (Paint paint = new Paint()) {
                 // 1. "Scaffold" label (left)
                 paint.setColor(Color.WHITE.getRGB());
-                drawContext.drawString(labelStr, labelX, textY, shelfLabelFont, paint);
+                drawContext.drawString(labelStr, labelX, textY+1f, shelfLabelFont, paint);
 
                 // 2. "X blocks" (right)
-                drawContext.drawString(blocksStr, blocksX, textY-1f, shelfBlocksFont, paint);
+                drawContext.drawString(blocksStr, blocksX, textY, shelfBlocksFont, paint);
 
                 // 3. "X.X bps" (to the left of blocks, 10px gap)
-                drawContext.drawString(bpsStr, bpsX, textY-1f, shelfBpsFont, paint);
+                drawContext.drawString(bpsStr, bpsX, textY, shelfBpsFont, paint);
 
                 // 4. progress bar — gray track
                 paint.setColor(0x80333333);

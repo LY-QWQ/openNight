@@ -1,6 +1,7 @@
 package client.nilore.hud;
 
 import client.nilore.settings.impl.BooleanSetting;
+import client.nilore.settings.impl.ModeSetting;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.BufferUploader;
@@ -14,6 +15,7 @@ import java.util.Iterator;
 import java.util.List;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.util.Mth;
+import net.minecraft.sounds.SoundEvents;
 import client.nilore.event.EventTarget;
 import client.nilore.event.impl.GlRenderEvent;
 import client.nilore.event.impl.ModuleToggleEvent;
@@ -46,9 +48,10 @@ public class NotificationHud extends HudElement {
     private static final int TEXT_COLOR = 0xFFFFFFFF;
 
     private final NumberSetting margin = new NumberSetting("Margin", 8.0f, 0.0f, 100.0f, 1.0f);
-    private final NumberSetting duration = new NumberSetting("Duration (ms)", 900, 500, 10000, 100);
+    private final NumberSetting duration = new NumberSetting("Duration (ms)", 800, 500, 10000, 100);
     private final NumberSetting maxNotifications = new NumberSetting("Max Notifications", 7, 1, 10, 1);
     private final BooleanSetting needSound = new BooleanSetting("Sound",true);
+    private final ModeSetting whichSound = new ModeSetting("Type","Sigma","Lever").withDefault("Sigma");
 
     private final List<NotificationEntry> notifications = new ArrayList<>();
 
@@ -64,7 +67,7 @@ public class NotificationHud extends HudElement {
 
     @Override
     public void registerSettings() {
-        this.registerSetting(margin, duration, maxNotifications, needSound);
+        this.registerSetting(margin, duration, maxNotifications, needSound, whichSound);
     }
 
     @EventTarget
@@ -82,8 +85,15 @@ public class NotificationHud extends HudElement {
             notifications.remove(0);
         }
         if (this.isEnabled() && needSound.getValue()) {
-            String soundName = event.enabled() ? "Enabled.wav" : "Disabled.wav";
-            SoundUtil.playSound(soundName, 0.0f);
+            if ("Lever".equals(whichSound.getValue())) {
+                if (mc.player != null) {
+                    if (event.enabled()) mc.player.playSound(SoundEvents.LEVER_CLICK, 1f, 0.6f);
+                    else mc.player.playSound(SoundEvents.LEVER_CLICK, 1f, 0.5f);
+                }
+            } else {
+                String soundName = event.enabled() ? "Enabled.wav" : "Disabled.wav";
+                SoundUtil.playSound(soundName, 0.0f);
+            }
         }
     }
 
