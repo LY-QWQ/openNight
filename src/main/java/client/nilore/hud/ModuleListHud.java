@@ -26,6 +26,7 @@ import client.nilore.utils.animation.SmoothAnimationTimer;
 import client.nilore.utils.math.Easings;
 import client.nilore.utils.render.ColorUtil;
 import client.nilore.utils.render.GradientTheme;
+import client.nilore.utils.render.RenderUtil;
 import client.nilore.event.EventTarget;
 
 public class ModuleListHud extends HudElement {
@@ -144,6 +145,11 @@ public class ModuleListHud extends HudElement {
     private NumberSetting backgroundRadius;
     private NumberSetting backgroundAlpha;
 
+    // Glow settings
+    private BooleanSetting glowEnabled;
+    private NumberSetting glowRadius;
+    private NumberSetting glowAlpha;
+
     // Side line settings
     private BooleanSetting sideLineEnabled;
     private ModeSetting sideLineMode;
@@ -197,6 +203,11 @@ public class ModuleListHud extends HudElement {
         this.backgroundRadius = new NumberSetting("Background Radius", DEFAULT_RADIUS, 0.0f, 10.0f, 0.25f);
         this.backgroundAlpha = new NumberSetting("Background Alpha", 80.0f, 0.0f, 255.0f, 1.0f);
 
+        // Glow settings
+        this.glowEnabled = new BooleanSetting("Glow", false);
+        this.glowRadius = new NumberSetting("Glow Radius", 12.0f, 4.0f, 40.0f, 1.0f);
+        this.glowAlpha = new NumberSetting("Glow Alpha", 120.0f, 0.0f, 255.0f, 1.0f);
+
         // Side line settings
         this.sideLineEnabled = new BooleanSetting("Side Line", false);
         this.sideLineMode = new ModeSetting("Side Line Mode", "Auto", "Auto", "Left", "Right").withDefault("Auto");
@@ -218,6 +229,7 @@ public class ModuleListHud extends HudElement {
                 important,
                 paddingX, paddingY, rowHeight, rowSpacing, backgroundEnabled, backgroundRadius, backgroundAlpha,
                 sideLineEnabled, sideLineMode, sideLineWidth,
+                glowEnabled, glowRadius, glowAlpha,
                 useClientColor, textColorMode, gradientTheme, rainbowSpeed, rainbowSaturation, rainbowBrightness, rainbowOffset);
     }
 
@@ -371,6 +383,18 @@ public class ModuleListHud extends HudElement {
                            boolean broken, Alignment alignment, int rowIndex, int rowCount) {
         RoundedRectangle bounds = this.rowBounds(layout, broken, alignment, rowIndex, rowCount);
         int rowColor = this.colorForPosition(layout.rowIndex, 0.5f, Math.max(1, rows.size() - 1));
+
+        // Glow effect (behind background)
+        if (this.glowEnabled.getValue()) {
+            float gRadius = this.glowRadius.getValue().floatValue();
+            int gAlpha = Math.round(this.glowAlpha.getValue().floatValue() * layout.progress);
+            if (gAlpha > 0 && gRadius > 0.0f) {
+                RenderUtil.drawShadow(drawContext.getPoseStack(),
+                    bounds.x1, bounds.y1, bounds.getWidth(), bounds.getHeight(),
+                    (int) gRadius, (gAlpha << 24) | 0x000000);
+                RenderUtil.enableBlend();
+            }
+        }
 
         if (this.backgroundEnabled.getValue()) {
             try (Paint paint = new Paint()) {
