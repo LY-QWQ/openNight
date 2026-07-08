@@ -4,6 +4,8 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.google.gson.stream.JsonReader;
+import java.io.StringReader;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -118,7 +120,10 @@ public class NeteaseApi {
         return CLIENT.sendAsync(request, HttpResponse.BodyHandlers.ofString())
                 .thenApply(resp -> {
                     System.out.println("[MusicPlayer] API " + params.split("&")[0] + " status=" + resp.statusCode());
-                    return JsonParser.parseString(resp.body());
+                    String body = resp.body();
+                    JsonReader reader = new JsonReader(new StringReader(body));
+                    reader.setLenient(true);
+                    return JsonParser.parseReader(reader);
                 })
                 .exceptionally(e -> {
                     System.err.println("[MusicPlayer] API error: " + e.getMessage());

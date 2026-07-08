@@ -158,6 +158,11 @@ public class MoonTargetStyle
             float slideOff = this.slideAnim.getValueF();
             String displayName = target == mc.player ? NameProtect.getProtectedName() : target.getName().getString();
             GlHelper.drawTextShadowLegacy(displayName, contentX, nameY + 1.0f + slideOff, this.nameFont, new Color(1.0f, 1.0f, 1.0f, fade).getRGB());
+            // 目标血量 - 同行的最右侧
+            int healthInt = (int)Math.ceil(target.getHealth());
+            String healthStr = String.valueOf(healthInt);
+            float healthTextX = contentX + contentWidth - GlHelper.getStringWidth(healthStr, this.nameFont)-2.0f;
+            GlHelper.drawTextShadowLegacy(healthStr, healthTextX, nameY + 1.0f + slideOff, this.nameFont, new Color(0, 230, 255, (int)(255.0f * fade)).getRGB());
             // 血条 - 头像下方（横跨整个面板）
             float headBarX = x + 4.0f;
             float headBarW = 120.0f - 8.0f;
@@ -180,7 +185,7 @@ public class MoonTargetStyle
             this.equipmentSlots[2] = target.getItemBySlot(EquipmentSlot.LEGS);
             this.equipmentSlots[3] = target.getItemBySlot(EquipmentSlot.FEET);
         }
-        float itemX = contentX;
+        float itemX = contentX - 1.0f;
         float itemScale = 0.8f;
         float itemSize = 16.0f * itemScale;
         float itemGap = 2.0f;
@@ -190,7 +195,7 @@ public class MoonTargetStyle
             if (itemStack != null && !itemStack.isEmpty()) {
                 PoseStack itemPose = render2DEvent.guiGraphics().pose();
                 itemPose.pushPose();
-                itemPose.translate(itemX, belowNameY, 0.0f);
+                itemPose.translate(itemX, belowNameY + 2.0f, 0.0f);
                 itemPose.scale(itemScale, itemScale, 1.0f);
                 RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, fade);
                 render2DEvent.guiGraphics().renderItem(itemStack, 0, 0);

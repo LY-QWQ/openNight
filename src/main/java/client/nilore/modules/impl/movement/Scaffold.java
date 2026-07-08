@@ -499,7 +499,7 @@ public class Scaffold extends Module {
 
                 // 4. progress bar — gray track
                 paint.setColor(0x80333333);
-                drawContext.drawRoundedRect(RoundedRectangle.ofXYWHR(progBarX, progBarY, progBarW, progBarH, 1f), paint);
+                drawContext.drawRoundedRect(RoundedRectangle.ofXYWHR(progBarX, progBarY, progBarW, progBarH, 2f), paint);
 
                 // 5. progress bar — white fill
                 if (animProg > 0.01f) {

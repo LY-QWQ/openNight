@@ -121,7 +121,7 @@ public class ModuleListHud extends HudElement {
     }
 
     private static final float MIN_VISIBLE_EDGE = 4.0f;
-    private static final float DEFAULT_ROW_HEIGHT = 13.5f;
+    private static final float DEFAULT_ROW_HEIGHT = 15f;
     private static final float DEFAULT_PADDING_X = 3f;
     private static final float DEFAULT_PADDING_Y = 3.5f;
     private static final float DEFAULT_ROW_SPACING = 0.0f;
@@ -375,13 +375,14 @@ public class ModuleListHud extends HudElement {
         List<RowRenderLayout> layouts = this.computeRowLayouts(rows, x, y, width, alignment);
         boolean broken = this.breakEnabled.getValue();
         for (int i = 0; i < layouts.size(); i++) {
-            this.renderRow(drawContext, rows, layouts.get(i), broken, alignment, i, layouts.size());
+            this.renderRow(drawContext, rows, layouts.get(i), broken, alignment, i, layouts.size(), layouts);
         }
     }
 
     private void renderRow(DrawContext drawContext, List<AnimatedRow> rows, RowRenderLayout layout,
-                           boolean broken, Alignment alignment, int rowIndex, int rowCount) {
-        RoundedRectangle bounds = this.rowBounds(layout, broken, alignment, rowIndex, rowCount);
+                           boolean broken, Alignment alignment, int rowIndex, int rowCount,
+                           List<RowRenderLayout> layouts) {
+        RoundedRectangle bounds = this.rowBounds(layout, broken, alignment, rowIndex, rowCount, layouts);
         int rowColor = this.colorForPosition(layout.rowIndex, 0.5f, Math.max(1, rows.size() - 1));
 
         // Glow effect (behind background)
@@ -447,21 +448,30 @@ public class ModuleListHud extends HudElement {
         return layouts;
     }
 
-    private RoundedRectangle rowBounds(RowRenderLayout layout, boolean broken, Alignment alignment, int rowIndex, int rowCount) {
+    private RoundedRectangle rowBounds(RowRenderLayout layout, boolean broken, Alignment alignment, int rowIndex, int rowCount,
+                                         List<RowRenderLayout> layouts) {
         float radius = this.backgroundRadius.getValue().floatValue();
         if (broken || radius <= 0.0f) {
             return RoundedRectangle.ofXYWHR(layout.x, layout.y, layout.width, layout.height, radius);
         }
-        boolean largeRadius = radius > 4.0f;
+        // Compute a per-row side corner radius based on the width difference
+        // with the next row below, so adjacent rows with similar widths blend smoothly.
+        float widthDiffRadius = radius;
+        if (rowIndex < rowCount - 1) {
+            float nextWidth = layouts.get(rowIndex + 1).width;
+            float diff = Math.abs(layout.width - nextWidth);
+            widthDiffRadius = Math.min(radius, diff);
+        }
+
         float tl, tr, br, bl;
         if (alignment == Alignment.LEFT) {
-            tl = 0; tr = largeRadius ? radius : 0; br = radius; bl = 0;
+            tl = 0; tr = 0; br = widthDiffRadius; bl = 0;
             if (rowIndex == 0) { tl = radius; tr = radius; }
-            if (rowIndex == rowCount - 1) { bl = radius; }
+            if (rowIndex == rowCount - 1) { bl = radius; br = radius; }
         } else {
-            tl = largeRadius ? radius : 0; tr = 0; br = 0; bl = radius;
+            tl = 0; tr = 0; br = 0; bl = widthDiffRadius;
             if (rowIndex == 0) { tl = radius; tr = radius; }
-            if (rowIndex == rowCount - 1) { br = radius; }
+            if (rowIndex == rowCount - 1) { br = radius; bl = radius; }
         }
         return RoundedRectangle.ofXYWHRadii(layout.x, layout.y, layout.width, layout.visualHeight(false),
                 new float[]{tl, tr, br, bl});

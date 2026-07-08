@@ -22,14 +22,22 @@ import client.nilore.render.Rectangle;
 import client.nilore.render.RoundedRectangle;
 import client.nilore.render.RoundedRectShader;
 import client.nilore.render.Texture;
+import client.nilore.settings.impl.BooleanSetting;
+import client.nilore.settings.impl.NumberSetting;
 import client.nilore.utils.animation.SmoothAnimationTimer;
 import client.nilore.utils.math.Easings;
 import client.nilore.utils.render.ColorUtil;
+import client.nilore.utils.render.RenderUtil;
 
 public class MusicPlayerHud extends HudElement {
     private final SmoothAnimationTimer showAnim = new SmoothAnimationTimer();
     private float titleScrollOffset = 0;
     private long titleScrollTimestamp = 0;
+
+    private final NumberSetting bgAlphaSetting = new NumberSetting("Bg Alpha", 120, 0, 255, 1);
+    private final BooleanSetting glowSetting = new BooleanSetting("Glow", false);
+    private final NumberSetting glowRadiusSetting = new NumberSetting("Glow Radius", 12, 4, 40, 1);
+    private final NumberSetting glowAlphaSetting = new NumberSetting("Glow Alpha", 120, 0, 255, 1);
 
     private static final float ART_SIZE = 32;
     private static final float GAP = 8;
@@ -55,6 +63,11 @@ public class MusicPlayerHud extends HudElement {
         super("MusicPlayerHud");
         this.setWidth(BAR_W);
         this.setHeight(BAR_H);
+    }
+
+    @Override
+    public void registerSettings() {
+        this.registerSetting(bgAlphaSetting, glowSetting, glowRadiusSetting, glowAlphaSetting);
     }
 
     @Override
@@ -107,8 +120,19 @@ public class MusicPlayerHud extends HudElement {
         float progress = player.getProgress();
 
         // background
+        // Glow behind background
+        if (glowSetting.getValue()) {
+            float gRadius = glowRadiusSetting.getValue().floatValue();
+            int gAlpha = glowAlphaSetting.getValue().intValue();
+            if (gAlpha > 0 && gRadius > 0.0f) {
+                RenderUtil.drawShadow(ctx.getPoseStack(),
+                        x, y, BAR_W, BAR_H, (int) gRadius, (int) ((gAlpha << 24) | 0x000000));
+                RenderUtil.enableBlend();
+            }
+        }
+        int bgAlpha = bgAlphaSetting.getValue().intValue();
         ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(x, y, BAR_W, BAR_H, RADIUS),
-                new Paint().setColor(ColorUtil.fromARGB(0, 0, 0, (int)(100 * a))));
+                new Paint().setColor(ColorUtil.fromARGB(0, 0, 0, (int) (bgAlpha * a))));
 
         // album art (rounded, equal padding)
         float artX = x + PAD;
