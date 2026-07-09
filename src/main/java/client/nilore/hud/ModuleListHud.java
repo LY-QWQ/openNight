@@ -62,17 +62,18 @@ public class ModuleListHud extends HudElement {
             }
             this.targetVisible = visible;
             double target = visible ? 1.0 : 0.0;
-            // Force reset if animation stuck
-            if (!visible && this.progressAnim.isAnimating()) {
-                this.progressAnim.setCurrentValue(this.progressAnim.getValueF());
-                this.progressAnim.setToValue(0.0);
-                this.progressAnim.setStartTime(System.currentTimeMillis());
-                this.progressAnim.setDuration(180.0);
-                this.progressAnim.setEasing(Easings.EASE_IN_POW3);
-            } else {
-                this.progressAnim.animate(target, visible ? 0.24 : 0.18,
-                        visible ? Easings.EASE_OUT_POW3 : Easings.EASE_IN_POW3);
-            }
+            // Bypass SmoothAnimationTimer.animate() entirely — its cancellation check
+            // (target == fromValue || target == toValue || target == currentValue)
+            // misfires on rapid toggle sequences like on→off→on where fromValue
+            // is still 1.0 from the prior hide animation, silently dropping the show.
+            // Direct field mutation always works regardless of prior animation state.
+            float current = this.progressAnim.getValueF();
+            this.progressAnim.setCurrentValue(current);
+            this.progressAnim.setFromValue(current);
+            this.progressAnim.setToValue(target);
+            this.progressAnim.setStartTime(System.currentTimeMillis());
+            this.progressAnim.setDuration(visible ? 240.0 : 180.0);
+            this.progressAnim.setEasing(visible ? Easings.EASE_OUT_POW3 : Easings.EASE_IN_POW3);
         }
 
         private void tick() {

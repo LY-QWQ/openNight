@@ -136,7 +136,7 @@ void MainWindow::buildUi() {
     title->setObjectName("title");
 
     hint_ = new QLabel(
-        QStringLiteral("Click Inject on the instance you want to load OpenZen into. "
+        QStringLiteral("Click Inject on the instance you want to load OpenNilore into. "
                        "List refreshes every second."),
         body);
     hint_->setObjectName("hint");

@@ -13,7 +13,19 @@
       "Bash(.\\\\gradlew.bat compileJava)",
       "Bash(cmd.exe /c \"gradlew.bat compileJava 2>&1\")",
       "Bash(git checkout *)",
-      "Bash(./gradlew.bat compileJava)"
+      "Bash(./gradlew.bat compileJava)",
+      "Bash(jar tf *)",
+      "Bash(cd /tmp)",
+      "Bash(jar xf *)",
+      "Bash(javap -p -c net/minecraft/client/gui/Gui.class)",
+      "Bash(javap -p net/minecraft/world/scores/Scoreboard.class)",
+      "Bash(javap -p net/minecraft/world/scores/Objective.class)",
+      "Bash(javap -p net/minecraft/world/scores/Score.class)",
+      "Bash(javap -p net/minecraft/client/gui/Gui.class)",
+      "Bash(iconv -f GBK -t UTF-8)",
+      "Bash(iconv -f GBK -t UTF-8//IGNORE)",
+      "Bash(git commit -m 'feat: 添加 ScoreboardHud 自定义计分板 HUD *)",
+      "Bash(git commit -m 'feat: 添加 ScoreboardHud + ModuleListHud 动画修复 + MainWindow 字段更新 *)"
     ]
   }
 }
