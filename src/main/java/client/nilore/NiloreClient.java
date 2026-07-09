@@ -29,6 +29,7 @@ import client.nilore.patch.EntityPatch;
 import client.nilore.patch.EntityRenderDispatcherPatch;
 import client.nilore.patch.EntityRendererPatch;
 import client.nilore.patch.FriendlyByteBufPatch;
+import client.nilore.patch.GuiPatch;
 import client.nilore.patch.BlockOcclusionCachePatch;
 import client.nilore.patch.GameRendererPatch;
 import client.nilore.patch.HumanoidModelPatch;
@@ -211,6 +212,7 @@ public class NiloreClient extends ClientBase {
         PatchRegistry.register(ItemPatch.class);
         PatchRegistry.register(PlayerTabOverlayPatch.class);
         PatchRegistry.register(FriendlyByteBufPatch.class);
+        PatchRegistry.register(GuiPatch.class);
 
         // Compatibility patch for Embeddium/Sodium's BlockOcclusionCache.
         // Always registered so the transformer can catch the class when it

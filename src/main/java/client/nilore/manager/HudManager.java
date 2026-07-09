@@ -17,6 +17,7 @@ import client.nilore.hud.ModuleListHud;
 import client.nilore.hud.NotificationHud;
 import client.nilore.hud.PlayerListHud;
 import client.nilore.hud.PotionEffectsHud;
+import client.nilore.hud.ScoreboardHud;
 import client.nilore.hud.TargetHud;
 import client.nilore.modules.impl.render.Armor;
 import client.nilore.event.EventTarget;
@@ -38,6 +39,7 @@ public class HudManager {
         this.registerHudElement(new MusicPlayerHud());
         this.registerHudElement(new NotificationHud());
         this.registerHudElement(new Armor());
+        this.registerHudElement(new ScoreboardHud());
     }
 
     private void registerHudElement(HudElement hudElement) {
