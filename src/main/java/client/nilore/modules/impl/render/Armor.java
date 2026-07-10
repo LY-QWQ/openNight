@@ -1,5 +1,6 @@
 package client.nilore.modules.impl.render;
 
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ItemStack;
 import client.nilore.event.impl.GlRenderEvent;
@@ -15,6 +16,8 @@ import client.nilore.utils.render.RenderUtil;
 
 public class Armor
 extends HudElement {
+    private static final float MIN_VISIBLE_EDGE = 4.0f;
+
     private final BooleanSetting backgroundSetting = new BooleanSetting("Background", true);
     private final NumberSetting bgAlphaSetting = new NumberSetting("Bg Alpha", 70, 0, 255, 1);
     private final BooleanSetting glowSetting = new BooleanSetting("Glow", false);
@@ -99,9 +102,39 @@ extends HudElement {
         }
         this.setWidth(totalWidth);
         this.setHeight(totalHeight);
+        this.clampToScreen(totalWidth, totalHeight);
     }
 
     @Override
     public void onSettings() {
+    }
+
+    @Override
+    public void mouseDragged(int mouseX, int mouseY) {
+        this.setX((float) mouseX - this.getDragOffsetX());
+        this.setY((float) mouseY - this.getDragOffsetY());
+        // Use the total width/height for clamping during drag — falls back to 1.0f if not yet measured
+        this.clampToScreen(Math.max(this.getWidth(), 1.0f), Math.max(this.getHeight(), 1.0f));
+    }
+
+    @Override
+    public void stopDragging() {
+        boolean wasDragging = this.isDragging();
+        super.stopDragging();
+        if (wasDragging) {
+            client.nilore.NiloreClient.getInstance().getConfigManager().saveAll();
+        }
+    }
+
+    private void clampToScreen(float width, float height) {
+        if (mc == null || mc.getWindow() == null) {
+            return;
+        }
+        float screenWidth = mc.getWindow().getGuiScaledWidth();
+        float screenHeight = mc.getWindow().getGuiScaledHeight();
+        float maxX = Math.max(MIN_VISIBLE_EDGE, screenWidth - Math.min(width, screenWidth) - MIN_VISIBLE_EDGE);
+        float maxY = Math.max(MIN_VISIBLE_EDGE, screenHeight - Math.min(height, screenHeight) - MIN_VISIBLE_EDGE);
+        this.setX(Mth.clamp(this.getX(), MIN_VISIBLE_EDGE, maxX));
+        this.setY(Mth.clamp(this.getY(), MIN_VISIBLE_EDGE, maxY));
     }
 }
