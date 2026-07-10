@@ -41,6 +41,11 @@ extends Module {
     public final BooleanSetting sprintStateCheck = new BooleanSetting("Sprint state check", true, () -> mode.is("NoXZ"));
     public final BooleanSetting raytraceCheck = new BooleanSetting("Raytrace Check", true, () -> mode.is("NoXZ"));
     public final BooleanSetting log = new BooleanSetting("Log", false, () -> mode.is("NoXZ"));
+    public final NumberSetting alinkTimeout = new NumberSetting("Alink Timeout", 20.0, 5.0, 60.0, 1, () -> mode.is("NoXZ"));
+    public final ModeSetting attackMode = new ModeSetting("Attack Mode", "PerTick", "OneTime").withDefault("OneTime").withVisibility(() -> mode.is("NoXZ"));
+    public final BooleanSetting autoAttackCount = new BooleanSetting("Auto Attack Count", false, () -> mode.is("NoXZ"));
+    public final BooleanSetting dynamicAlinkSearch = new BooleanSetting("Dynamic Alink Search", true, () -> mode.is("NoXZ"));
+    public final NumberSetting alinkSearchRange = new NumberSetting("Alink Search Range", 6.0, 1.0, 20.0, 0.5, () -> mode.is("NoXZ"));
 
     public AntiKB() {
         super("AntiKB", Category.COMBAT);

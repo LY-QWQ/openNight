@@ -25,7 +25,15 @@
       "Bash(iconv -f GBK -t UTF-8)",
       "Bash(iconv -f GBK -t UTF-8//IGNORE)",
       "Bash(git commit -m 'feat: 添加 ScoreboardHud 自定义计分板 HUD *)",
-      "Bash(git commit -m 'feat: 添加 ScoreboardHud + ModuleListHud 动画修复 + MainWindow 字段更新 *)"
+      "Bash(git commit -m 'feat: 添加 ScoreboardHud + ModuleListHud 动画修复 + MainWindow 字段更新 *)",
+      "Bash(java -version)",
+      "Read(//usr/local/**)",
+      "Bash(curl -sL \"https://github.com/leibnitz/cfr/releases/download/0.152/cfr-0.152.jar\" -o /tmp/cfr.jar)",
+      "Bash(where svn *)",
+      "Bash(cp *)",
+      "Bash(git diff *)",
+      "Read(//tmp/**)",
+      "mcp__ide__getDiagnostics"
     ]
   }
 }

@@ -1,9 +1,9 @@
 package client.nilore.utils.rotation;
 
+import client.nilore.NiloreClient;
 import net.minecraft.network.protocol.game.ServerboundChatPacket;
 import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
 import client.nilore.ClientBase;
-import client.nilore.NiloreClient;
 import client.nilore.event.impl.CameraPitchEvent;
 import client.nilore.event.impl.ChatEvent;
 import client.nilore.event.impl.FallFlyingEvent;
@@ -23,21 +23,19 @@ import client.nilore.modules.impl.combat.CrystalAura;
 import client.nilore.modules.impl.combat.KillAura;
 import client.nilore.modules.impl.movement.FireballBlink;
 import client.nilore.modules.impl.movement.Scaffold;
-import client.nilore.modules.impl.render.FakeAntiAim;
 import client.nilore.modules.impl.player.AntiTNT;
 import client.nilore.modules.impl.player.AntiWeb;
 import client.nilore.modules.impl.player.AutoMLG;
 import client.nilore.modules.impl.player.AutoWebPlace;
 import client.nilore.modules.impl.player.Helper;
 import client.nilore.modules.impl.player.MidPearl;
-import client.nilore.modules.impl.world.BlockIn;
 import client.nilore.utils.animation.TickTimer;
 import client.nilore.utils.game.MovementUtil;
 import client.nilore.utils.misc.ReflectionUtil;
 import client.nilore.event.EventTarget;
 
 public class RotationHandler
-extends ClientBase {
+        extends ClientBase {
     public static Rotation targetRotation;
     public static Rotation prevRotation;
     public static Rotation sentRotation;
@@ -95,7 +93,6 @@ extends ClientBase {
             AutoThrow autoThrow = AutoThrow.INSTANCE;
             AntiKB antiKB = AntiKB.INSTANCE;
             MidPearl midPearl = MidPearl.INSTANCE;
-            BlockIn blockIn = BlockIn.INSTANCE;
             isRotating = true;
             if (autoMLG != null && autoMLG.isEnabled() && autoMLG.targetRotation != null) {
                 RotationHandler.setTargetRotation(autoMLG.targetRotation);
@@ -116,14 +113,12 @@ extends ClientBase {
                 RotationHandler.setTargetRotation(AutoWebPlace.targetRotation);
             } else if (autoThrow != null && autoThrow.isEnabled() && autoThrow.targetRotation != null) {
                 RotationHandler.setTargetRotation(autoThrow.targetRotation);
-            } else if (scaffold != null && scaffold.isEnabled() && scaffold.rots != null && scaffold.wantsRotation) {
+            } else if (scaffold != null && scaffold.isEnabled() && scaffold.rots != null) {
                 RotationHandler.setTargetRotation(scaffold.rots);
             } else if (killAura != null && killAura.isEnabled() && KillAura.target != null && killAura.rotation != null) {
                 RotationHandler.setTargetRotation(new Rotation(killAura.rotation.getYaw(), killAura.rotation.getPitch()));
             } else if (antiKB != null && antiKB.isEnabled() && AntiKB.rotation != null) {
                 RotationHandler.setTargetRotation(AntiKB.rotation);
-            } else if (blockIn != null && blockIn.isEnabled() && blockIn.targetRotation != null) {
-                RotationHandler.setTargetRotation(blockIn.targetRotation);
             } else {
                 isRotating = false;
             }
@@ -132,7 +127,6 @@ extends ClientBase {
 
     @EventTarget
     public void onHeadTurn(RotationAnimationEvent e) {
-        if (isFakeAntiAimOverriding()) return;
         if (sentRotation != null && prevSentRotation != null && mc.player != null && isRotating) {
             e.setYaw(sentRotation.getYaw());
             e.setLastYaw(prevSentRotation.getYaw());
@@ -144,16 +138,9 @@ extends ClientBase {
 
     @EventTarget
     public void onCameraPitch(CameraPitchEvent cameraPitchEvent) {
-        if (isFakeAntiAimOverriding()) return;
         if (sentRotation != null && prevSentRotation != null) {
             cameraPitchEvent.setPitch(sentRotation.getPitch());
         }
-    }
-
-
-    private static boolean isFakeAntiAimOverriding() {
-        FakeAntiAim faa = FakeAntiAim.INSTANCE;
-        return faa != null && faa.isEnabled() && faa.overrideRotation.getValue();
     }
 
     @EventTarget(value=4)
