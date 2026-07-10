@@ -24,6 +24,7 @@ import net.minecraft.network.protocol.game.ServerboundPlayerActionPacket;
 import net.minecraft.network.protocol.game.ServerboundPongPacket;
 import net.minecraft.network.protocol.game.ServerboundUseItemOnPacket;
 import net.minecraft.network.protocol.game.ServerboundUseItemPacket;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -34,8 +35,11 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.PotionItem;
 import net.minecraft.world.item.UseAnim;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
-import net.minecraft.world.phys.Vec3;
 import org.lwjgl.glfw.GLFW;
 import client.nilore.event.impl.MotionEvent;
 import client.nilore.event.impl.PacketEvent;
@@ -404,6 +408,10 @@ public class NoSlow extends Module {
 
     // ===== NoC0FNoSlow methods =====
 
+    public static boolean isProcessing() {
+        return INSTANCE != null && INSTANCE.step != Step.NONE;
+    }
+
     private void reset() {
         step = Step.NONE;
         hasSwapped = false;
@@ -437,14 +445,58 @@ public class NoSlow extends Module {
         return action == UseAnim.EAT || action == UseAnim.DRINK || action == UseAnim.SPEAR;
     }
     private boolean isLookingAtInteractableBlock() {
-        if (mc.player == null || mc.level == null) return false;
-        if (mc.hitResult == null || mc.hitResult.getType() != HitResult.Type.BLOCK) return false;
+        return isLookingAtInteractableBlock(mc);
+    }
 
-        Vec3 hitVec = mc.hitResult.getLocation();
-        BlockPos pos = new BlockPos((int) hitVec.x, (int) hitVec.y, (int) hitVec.z);
+    public static boolean isLookingAtInteractableBlock(Minecraft minecraft) {
+        if (minecraft == null || minecraft.player == null || minecraft.level == null) return false;
+        if (!(minecraft.hitResult instanceof BlockHitResult blockHit)) return false;
 
-        if (mc.level.isEmptyBlock(pos)) return false;
-        return !mc.player.isCrouching() || !mc.player.getMainHandItem().isEmpty();
+        BlockPos pos = blockHit.getBlockPos();
+        BlockState state = minecraft.level.getBlockState(pos);
+
+        // 通过方块标签检测可交互方块家族
+        if (state.is(BlockTags.DOORS) || state.is(BlockTags.FENCE_GATES)
+                || state.is(BlockTags.BUTTONS) || state.is(BlockTags.TRAPDOORS)
+                || state.is(BlockTags.SHULKER_BOXES) || state.is(BlockTags.ANVIL)
+                || state.is(BlockTags.BEDS) || state.is(BlockTags.CAMPFIRES)) {
+            return true;
+        }
+
+        // 检测已知的可交互方块
+        Block block = state.getBlock();
+        return block == Blocks.CHEST
+                || block == Blocks.TRAPPED_CHEST
+                || block == Blocks.FURNACE
+                || block == Blocks.BLAST_FURNACE
+                || block == Blocks.SMOKER
+                || block == Blocks.BARREL
+                || block == Blocks.ENDER_CHEST
+                || block == Blocks.BREWING_STAND
+                || block == Blocks.HOPPER
+                || block == Blocks.DISPENSER
+                || block == Blocks.DROPPER
+                || block == Blocks.JUKEBOX
+                || block == Blocks.NOTE_BLOCK
+                || block == Blocks.LEVER
+                || block == Blocks.REPEATER
+                || block == Blocks.COMPARATOR
+                || block == Blocks.DAYLIGHT_DETECTOR
+                || block == Blocks.CAKE
+                || block == Blocks.COMPOSTER
+                || block == Blocks.BEEHIVE
+                || block == Blocks.BEE_NEST
+                || block == Blocks.RESPAWN_ANCHOR
+                || block == Blocks.GRINDSTONE
+                || block == Blocks.STONECUTTER
+                || block == Blocks.CARTOGRAPHY_TABLE
+                || block == Blocks.LOOM
+                || block == Blocks.SMITHING_TABLE
+                || block == Blocks.LECTERN
+                || block == Blocks.BELL
+                || block == Blocks.SWEET_BERRY_BUSH
+                || block == Blocks.CRAFTING_TABLE
+                || block == Blocks.ENCHANTING_TABLE;
     }
 
     private boolean isEatOrDrink(ItemStack stack) {
