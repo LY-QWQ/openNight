@@ -53,6 +53,7 @@ import client.nilore.settings.impl.ModeSetting;
 import client.nilore.settings.impl.NumberSetting;
 import client.nilore.utils.game.EntityUtil;
 import client.nilore.utils.game.ItemUtil;
+import client.nilore.utils.game.RayTraceUtil;
 import client.nilore.utils.game.RotationUtil;
 import client.nilore.utils.math.MathUtil;
 import client.nilore.utils.misc.ChatUtil;
@@ -78,6 +79,7 @@ public class KillAura extends Module {
     public final BooleanSetting preferBaby      = new BooleanSetting("Prefer Baby", false);
     public final BooleanSetting morePart        = new BooleanSetting("More Particles", false);
     public final BooleanSetting keepSprint      = new BooleanSetting("Keep Sprint", true);
+    public final BooleanSetting overrideRaycast = new BooleanSetting("Override Raycast", true);
     public final BooleanSetting ignoreSkipTicks = new BooleanSetting("Ignore skip ticks", false);
     public final BooleanSetting fakeAutoBlock   = new BooleanSetting("Fake AutoBlock", true);
     public final BooleanSetting test            = new BooleanSetting("Test", false);
@@ -103,6 +105,7 @@ public class KillAura extends Module {
     public final NumberSetting rotationDrift = new NumberSetting("Drift", 0.1, 0, 5, 0.1);
     public final NumberSetting rotationJitter = new NumberSetting("Jitter", 0.02, 0, 1, 0.01);
 
+    private static final boolean ATTACK_FIX = true;
     private RotationUtil.BestHitInfo currentBestHit;
     private RotationUtil.BestHitInfo prevBestHit;
     private int attackTimes;
@@ -429,20 +432,40 @@ public class KillAura extends Module {
         }
     }
 
-    public void doAttack() {
+    public boolean doAttack() {
         if (this.isWebPlacing()) {
             this.attacks = 0.0f;
-            return;
+            return false;
         }
-        if (targetList.isEmpty()) return;
-        if (this.rotation == null) return;
+        if (ATTACK_FIX) {
+            this.updateTargets();
+            Entity freshTarget = this.getTarget();
+            if (freshTarget == null || !targetList.contains(freshTarget) || !this.isValidAttack(freshTarget)) {
+                return false;
+            }
+            RotationUtil.BestHitInfo freshBestHit = RotationUtil.getBestHit(freshTarget);
+            if (freshBestHit == null || freshBestHit.rotation() == null) {
+                return false;
+            }
+            target = freshTarget;
+            aimingTarget = freshTarget;
+            this.currentBestHit = freshBestHit;
+            this.rotation = freshBestHit.rotation();
+        }
+        if (targetList.isEmpty()) return false;
+        if (this.rotation == null) return false;
 
-        HitResult hitResult = mc.hitResult;
+        HitResult hitResult;
+        if (this.overrideRaycast.getValue() && this.rotation != null) {
+            hitResult = RayTraceUtil.rayTrace(mc.gameMode.getPickRange(), 1.0f, false, this.rotation);
+        } else {
+            hitResult = mc.hitResult;
+        }
         if (hitResult != null && hitResult.getType() == HitResult.Type.ENTITY) {
             Entity hitEntity = ((EntityHitResult) hitResult).getEntity();
             if (AntiBots.isBot(hitEntity)) {
                 ChatUtil.print("Skipped attack on suspected bot");
-                return;
+                return false;
             }
         }
         if (this.multiAttack.getValue()) {
@@ -450,18 +473,20 @@ public class KillAura extends Module {
             Rotation aimRot = RotationHandler.targetRotation;
             for (Entity entity : targetList) {
                 if (mc.player == null) break;
-                // 无旋转状态时跳过 rotation 距离检查，直接攻击目标
                 if (aimRot != null && RotationUtil.getHitDistance(entity, mc.player.getEyePosition(), aimRot) >= 3.0) continue;
-                this.attackEntity(entity);
-                if (++attacked >= 2) break;
+                if (this.attackEntity(entity)) {
+                    attacked++;
+                }
+                if (attacked >= 2) break;
             }
+            return attacked > 0;
         } else if (hitResult != null && hitResult.getType() == HitResult.Type.ENTITY) {
             Entity hitEntity = ((EntityHitResult) hitResult).getEntity();
-            this.attackEntity(hitEntity);
+            return this.attackEntity(hitEntity);
         } else if (target != null && targetList.contains(target)) {
-            // 没有 ray trace 命中（无瞄准目标时），直接攻击当前目标
-            this.attackEntity(target);
+            return this.attackEntity(target);
         }
+        return false;
     }
 
     public Entity getTarget() {
@@ -576,9 +601,9 @@ public class KillAura extends Module {
         return Math.sqrt(dx * dx + dz * dz);
     }
 
-    public void attackEntity(Entity entity) {
-        if (mc.player == null || mc.gameMode == null) return;
-        if (this.isWebPlacing()) return;
+    public boolean attackEntity(Entity entity) {
+        if (mc.player == null || mc.gameMode == null) return false;
+        if (this.isWebPlacing()) return false;
 
         ++this.attackTimes;
         float currentYaw = mc.player.getYRot();
@@ -614,6 +639,7 @@ public class KillAura extends Module {
         if (this.delayMode.is("1.9")) {
             this.sprintCounter = (int) mc.player.getCurrentItemAttackStrengthDelay();
         }
+        return true;
     }
 
     private boolean isWebPlacing() {

@@ -1,10 +1,8 @@
 package client.nilore.modules.impl.movement;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import java.awt.Color;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
-import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.protocol.Packet;
@@ -40,7 +38,6 @@ import client.nilore.render.RoundedRectangle;
 import client.nilore.settings.impl.BooleanSetting;
 import client.nilore.settings.impl.ModeSetting;
 import client.nilore.settings.impl.NumberSetting;
-import client.nilore.utils.animation.SpringAnimation;
 import client.nilore.utils.game.BlockUtil;
 import client.nilore.utils.game.FallingPlayer;
 import client.nilore.utils.game.MovementUtil;
@@ -55,18 +52,18 @@ import client.nilore.event.EventTarget;
 public class Scaffold extends Module {
     public static Scaffold INSTANCE;
 
-    public final ModeSetting mode = new ModeSetting("Mode", "Normal", "Telly Bridge", "Keep Y").withDefault("Normal");
+    public final ModeSetting mode = new ModeSetting("Mode", "Normal", "Telly Bridge", "Keep Y").withDefault("Telly Bridge");
     public final NumberSetting tellyAirTicks = new NumberSetting("AirTicks", 1, 0, 3, 0.1, () -> this.mode.is("Telly Bridge"));
     public final NumberSetting tellyPlaceDelay = new NumberSetting("PlaceDelay", 0, 0, 20, 1, () -> this.mode.is("Telly Bridge"));
-    public final BooleanSetting eagle = new BooleanSetting("Eagle", true, () -> this.mode.is("Normal"));
+    public final BooleanSetting eagle = new BooleanSetting("Eagle", false, () -> this.mode.is("Normal"));
     public final BooleanSetting renderItemSpoof = new BooleanSetting("Render Item Spoof", true);
     public final BooleanSetting clutch = new BooleanSetting("Clutch", true);
     public final ModeSetting swingMode = new ModeSetting("Swing", "Both", "Server").withDefault("Both");
     public final BooleanSetting blockCounter = new BooleanSetting("Block Counter", true);
-    public final NumberSetting rotationSpeed = new NumberSetting("Rotation Speed", 180, 0, 720, 5, () -> !this.syncRotSpeed.getValue());
+    public final NumberSetting rotationSpeed = new NumberSetting("Rotation Speed", 180, 0, 360, 5, () -> !this.syncRotSpeed.getValue());
     public final BooleanSetting syncRotSpeed = new BooleanSetting("Sync RotSpeed", false);
-    public final NumberSetting turnSpeed = new NumberSetting("Turn Speed", 75, 0, 720, 5, this.syncRotSpeed::getValue);
-    public final NumberSetting returnSpeed = new NumberSetting("Return Speed", 120, 0, 720, 5, this.syncRotSpeed::getValue);
+    public final NumberSetting turnSpeed = new NumberSetting("Turn Speed", 75, 0, 360, 5, this.syncRotSpeed::getValue);
+    public final NumberSetting returnSpeed = new NumberSetting("Return Speed", 120, 0, 360, 5, this.syncRotSpeed::getValue);
     public final NumberSetting predictTicks = new NumberSetting("Predict Ticks", 1, 1, 3, 1);
 
     public Rotation rots = new Rotation();
@@ -86,19 +83,14 @@ public class Scaffold extends Module {
     private boolean canBuildNow;
     private BlockPos lastC05Position;
     private int tellyPlaceDelayTimer;
-    private BlockPos lastTargetPosition;
-    private int turnTicks;
-    public int startBlockCount = -1;
 
-    // ---- shelf HUD ----
     private static final FontRenderer shelfLabelFont = FontPresets.axiformaBold(12);
     private static final FontRenderer shelfBpsFont = FontPresets.axiformaBold(13);
     private static final FontRenderer shelfBlocksFont = FontPresets.axiformaBold(13);
-    private static final float SHELF_W = 230f;
-    private static final float SHELF_H = 14f;
-    private static final float SHELF_RADIUS = 7f;
-    private final SpringAnimation shelfProgress = new SpringAnimation(300f, 1f, 25f, 1f);
-    private long hudLastFrameTime = 0L;
+    private final client.nilore.utils.animation.SpringAnimation shelfProgress =
+            new client.nilore.utils.animation.SpringAnimation(300.0f, 1.0f, 25.0f, 1.0f);
+    private long hudLastFrameTime;
+
 
     public Scaffold() {
         super("Scaffold", Category.MOVEMENT);
@@ -128,13 +120,16 @@ public class Scaffold extends Module {
     @Override
     public void onDisable() {
         if (mc != null && mc.player != null) {
+            this.packetBatches.forEach(this::processBatchedPackets);
+            this.packetBatches.clear();
             boolean jumpDown = InputConstants.isKeyDown(mc.getWindow().getWindow(), mc.options.keyJump.getKey().getValue());
             boolean shiftDown = InputConstants.isKeyDown(mc.getWindow().getWindow(), mc.options.keyShift.getKey().getValue());
             mc.options.keyJump.setDown(jumpDown);
             mc.options.keyShift.setDown(shiftDown);
             mc.options.keyUse.setDown(false);
-            mc.player.getInventory().selected = this.oldSlot;
+            mc.player.getInventory().selected = this.visualSlot >= 0 ? this.visualSlot : this.oldSlot;
             this.canBuildNow = true;
+            this.lastC05Position = null;
             ClientBase.delayPackets.clear();
         }
         super.onDisable();
@@ -338,7 +333,8 @@ public class Scaffold extends Module {
     @EventTarget
     public void onRender2D(Render2DEvent event) {
         if (mc.player == null || mc.level == null) return;
-        renderShelfHud(event);
+        if (!this.blockCounter.getValue()) return;
+        this.renderShelfHud(event);
     }
 
     private void renderShelfHud(Render2DEvent event) {
@@ -347,75 +343,45 @@ public class Scaffold extends Module {
         int totalBlocks = this.getBlockSlot();
         if (totalBlocks == 0) return;
 
-        // ---- delta time ----
         long now = System.currentTimeMillis();
-        if (hudLastFrameTime == 0L) hudLastFrameTime = now;
-        float deltaSec = Math.min((now - hudLastFrameTime) / 1000f, 0.05f);
-        hudLastFrameTime = now;
+        if (this.hudLastFrameTime == 0L) this.hudLastFrameTime = now;
+        float deltaSec = Math.min((now - this.hudLastFrameTime) / 1000.0f, 0.05f);
+        this.hudLastFrameTime = now;
 
-        // ---- progress: current / max(startBlockCount, 64) ----
-        int maxBlocks = Math.max(startBlockCount < 0 ? 0 : startBlockCount, 64);
-        float raw = maxBlocks > 0 ? (float) totalBlocks / (float) maxBlocks : 0f;
-        float target = Math.min(1f, Math.max(0f, raw));
-        shelfProgress.setTargetValue(target);
-        shelfProgress.update(deltaSec);
-        float animProg = shelfProgress.getValue();
+        int maxBlocks = Math.max(64, totalBlocks);
+        float target = Math.min(1.0f, Math.max(0.0f, (float) totalBlocks / maxBlocks));
+        this.shelfProgress.setTargetValue(target);
+        this.shelfProgress.update(deltaSec);
+        float animProg = this.shelfProgress.getValue();
 
-        // ---- strings ----
         String labelStr = "Scaffold";
         String bpsStr = String.format("%.1f b/s", MovementUtil.getSpeedBps());
         String blocksStr = totalBlocks + "blocks";
-
-        float labelW = shelfLabelFont.getWidth(labelStr);
-        float bpsW = shelfBpsFont.getWidth(bpsStr);
-        float blocksW = shelfBlocksFont.getWidth(blocksStr);
-        float labelH = shelfLabelFont.getMetrics().capHeight();
-        float bpsH = shelfBpsFont.getMetrics().capHeight();
-        float blocksH = shelfBlocksFont.getMetrics().capHeight();
-
-        // ---- screen position ----
-        float sw = mc.getWindow().getGuiScaledWidth();
-        float sh = mc.getWindow().getGuiScaledHeight();
-
-        // progress bar — centered, 115x2
-        float progBarW = 115f;
-        float progBarH = 2f;
-        float progBarX = (sw - progBarW) / 2f;
-        float progBarY = sh / 2f + 12f;
-
-        // text aligned to progress bar edges
-        float padLeft = 0f;
-        float padRight = 0f;
-        float bpsToBlocksGap = 10f;
-
-        float blocksX = progBarX + progBarW - padRight - blocksW;
-        float bpsX = blocksX - bpsToBlocksGap - bpsW;
-        float labelX = progBarX + padLeft;
-
-        float textY = progBarY - 3f; // ~2px above the bar
+        float bpsWidth = shelfBpsFont.getWidth(bpsStr);
+        float blocksWidth = shelfBlocksFont.getWidth(blocksStr);
+        float screenWidth = mc.getWindow().getGuiScaledWidth();
+        float screenHeight = mc.getWindow().getGuiScaledHeight();
+        float barWidth = 115.0f;
+        float barHeight = 2.0f;
+        float barX = (screenWidth - barWidth) / 2.0f;
+        float barY = screenHeight / 2.0f + 12.0f;
+        float blocksX = barX + barWidth - blocksWidth;
+        float bpsX = blocksX - 10.0f - bpsWidth;
+        float textY = barY - 3.0f;
 
         Renderer.render(event.guiGraphics(), drawContext -> {
             try (Paint paint = new Paint()) {
-                // 1. "Scaffold" label (left)
-                paint.setColor(Color.WHITE.getRGB());
-                drawContext.drawString(labelStr, labelX, textY+1f, shelfLabelFont, paint);
-
-                // 2. "X blocks" (right)
+                paint.setColor(0xFFFFFFFF);
+                drawContext.drawString(labelStr, barX, textY + 1.0f, shelfLabelFont, paint);
                 drawContext.drawString(blocksStr, blocksX, textY, shelfBlocksFont, paint);
-
-                // 3. "X.X bps" (to the left of blocks, 10px gap)
                 drawContext.drawString(bpsStr, bpsX, textY, shelfBpsFont, paint);
-
-                // 4. progress bar — gray track
                 paint.setColor(0x80333333);
-                drawContext.drawRoundedRect(RoundedRectangle.ofXYWHR(progBarX, progBarY, progBarW, progBarH, 2f), paint);
-
-                // 5. progress bar — white fill
+                drawContext.drawRoundedRect(RoundedRectangle.ofXYWHR(barX, barY, barWidth, barHeight, 2.0f), paint);
                 if (animProg > 0.01f) {
                     drawContext.save();
-                    drawContext.clip(Rectangle.ofXYWH(progBarX, progBarY, progBarW * animProg, progBarH));
+                    drawContext.clip(Rectangle.ofXYWH(barX, barY, barWidth * animProg, barHeight));
                     paint.setColor(0xFFFFFFFF);
-                    drawContext.drawRoundedRect(RoundedRectangle.ofXYWHR(progBarX, progBarY, progBarW, progBarH, 1f), paint);
+                    drawContext.drawRoundedRect(RoundedRectangle.ofXYWHR(barX, barY, barWidth, barHeight, 1.0f), paint);
                     drawContext.restore();
                 }
             }
@@ -541,18 +507,16 @@ public class Scaffold extends Module {
 
         float speed;
         if (this.syncRotSpeed.getValue()) {
-            if (this.lastTargetPosition == null || !this.lastTargetPosition.equals(this.currentPlacement.position)) {
-                this.lastTargetPosition = this.currentPlacement.position;
-                this.turnTicks = 0;
-            } else {
-                this.turnTicks++;
-            }
             Rotation current = RotationHandler.targetRotation;
             if (current != null) {
-                float yawDiff = Math.abs(Mth.wrapDegrees(yaw - current.getYaw()));
-                if (yawDiff < 10.0f && this.turnTicks > 5) {
+                float realYaw = mc.player.getYRot();
+                float currentDiffToReal = Math.abs(Mth.wrapDegrees(current.getYaw() - realYaw));
+                float newDiffToReal = Math.abs(Mth.wrapDegrees(yaw - realYaw));
+                if (newDiffToReal < currentDiffToReal) {
+                    // 转头回真实视角（如从前进切到后退，目标偏转=玩家实际视角）→ Return Speed
                     speed = this.returnSpeed.getValue().floatValue();
                 } else {
+                    // 转头去目标面 → Turn Speed
                     speed = this.turnSpeed.getValue().floatValue();
                 }
             } else {

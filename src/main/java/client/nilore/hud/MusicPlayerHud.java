@@ -23,6 +23,7 @@ import client.nilore.render.RoundedRectangle;
 import client.nilore.render.RoundedRectShader;
 import client.nilore.render.Texture;
 import client.nilore.settings.impl.BooleanSetting;
+import client.nilore.settings.impl.ModeSetting;
 import client.nilore.settings.impl.NumberSetting;
 import client.nilore.utils.animation.SmoothAnimationTimer;
 import client.nilore.utils.math.Easings;
@@ -30,27 +31,34 @@ import client.nilore.utils.render.ColorUtil;
 import client.nilore.utils.render.RenderUtil;
 
 public class MusicPlayerHud extends HudElement {
+    private static final float SCALE = 1.1f;
     private final SmoothAnimationTimer showAnim = new SmoothAnimationTimer();
     private float titleScrollOffset = 0;
     private long titleScrollTimestamp = 0;
 
     private final NumberSetting bgAlphaSetting = new NumberSetting("Bg Alpha", 120, 0, 255, 1);
+    private final ModeSetting styleSetting = new ModeSetting("Style", "Simple", "Material3").withDefault("Simple");
     private final BooleanSetting glowSetting = new BooleanSetting("Glow", false);
     private final NumberSetting glowRadiusSetting = new NumberSetting("Glow Radius", 12, 4, 40, 1);
     private final NumberSetting glowAlphaSetting = new NumberSetting("Glow Alpha", 120, 0, 255, 1);
 
-    private static final float ART_SIZE = 32;
-    private static final float GAP = 8;
-    private static final float PAD = 8;
-    private static final float BAR_H = ART_SIZE + PAD * 2;
-    private static final float TEXT_W = 160;
+    private static final float ART_SIZE = 32 * SCALE;
+    private static final float GAP = 8 * SCALE;
+    private static final float PAD = 8 * SCALE;
+    private static final float BAR_H = ART_SIZE + PAD * 2 + 7f * SCALE;
+    private static final float TEXT_W = 160 * SCALE;
     private static final float BAR_W = PAD + ART_SIZE + GAP + TEXT_W + PAD;
-    private static final float RADIUS = 10;
-    private static final float BAR_HEIGHT = 2f;
+    private static final float RADIUS = 4 * SCALE;
+    private static final float BAR_HEIGHT = 2f * SCALE;
 
-    private final FontRenderer titleFont = FontPresets.pingfang(17);
-    private final FontRenderer artistFont = FontPresets.pingfang(14);
-    private final FontRenderer timeFont = FontPresets.pingfang(13);
+    private final FontRenderer titleFont = FontPresets.pingfang(19.5f * SCALE);
+    private final FontRenderer artistFont = FontPresets.pingfang(15.5f * SCALE);
+    private final FontRenderer timeFont = FontPresets.pingfang(12.5f * SCALE);
+    private final FontRenderer materialTitleFont = FontPresets.pingfang(16 * SCALE);
+    private final FontRenderer materialArtistFont = FontPresets.pingfang(12 * SCALE);
+    private final FontRenderer materialTimeFont = FontPresets.pingfang(11 * SCALE);
+    private final FontRenderer coverTitleFont = FontPresets.pingfang(18.0f * SCALE);
+    private final FontRenderer coverArtistFont = FontPresets.pingfang(12.0f * SCALE);
 
     // album art cache
     private volatile Texture albumTexture;
@@ -67,7 +75,7 @@ public class MusicPlayerHud extends HudElement {
 
     @Override
     public void registerSettings() {
-        this.registerSetting(bgAlphaSetting, glowSetting, glowRadiusSetting, glowAlphaSetting);
+        this.registerSetting(styleSetting, bgAlphaSetting, glowSetting, glowRadiusSetting, glowAlphaSetting);
     }
 
     @Override
@@ -117,7 +125,12 @@ public class MusicPlayerHud extends HudElement {
         DrawContext ctx = glRenderEvent.drawContext();
         if (ctx == null) return;
 
-        float progress = player.getProgress();
+        float progress = Math.max(0.0f, Math.min(1.0f, player.getProgress()));
+
+        if (styleSetting.is("Material3")) {
+            renderMaterial3(ctx, x, y, song, player, progress, a);
+            return;
+        }
 
         // background
         // Glow behind background
@@ -132,7 +145,7 @@ public class MusicPlayerHud extends HudElement {
         }
         int bgAlpha = bgAlphaSetting.getValue().intValue();
         ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(x, y, BAR_W, BAR_H, RADIUS),
-                new Paint().setColor(ColorUtil.fromARGB(0, 0, 0, (int) (bgAlpha * a))));
+                new Paint().setColor(ColorUtil.fromARGB(56, 42, 48, (int) (bgAlpha * a))));
 
         // album art (rounded, equal padding)
         float artX = x + PAD;
@@ -147,7 +160,7 @@ public class MusicPlayerHud extends HudElement {
                     artColor, albumTexture.getGlId(), 0, 0, 1, 1);
         } else {
             ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(artX, artY, ART_SIZE, ART_SIZE, artRadius),
-                    new Paint().setColor(ColorUtil.fromARGB(255, 255, 255, (int)(15 * a))));
+                    new Paint().setColor(ColorUtil.fromARGB(78, 60, 66, (int)(18 * a))));
         }
 
         // text area (to the right of album art)
@@ -159,7 +172,7 @@ public class MusicPlayerHud extends HudElement {
         ctx.save();
         ctx.clipRect(Rectangle.ofXYWH(textX, y + 2, textMaxW, BAR_H - 4), true);
         GlHelper.drawText(title, textX - titleScrollOffset, y + PAD, titleFont,
-                ColorUtil.fromARGB(255, 255, 255, (int)(255 * a)));
+                ColorUtil.fromARGB(243, 235, 234, (int)(255 * a)));
         ctx.restore();
 
         if (titleW > textMaxW) {
@@ -176,17 +189,17 @@ public class MusicPlayerHud extends HudElement {
         }
 
         GlHelper.drawText(song.artist, textX, y + PAD + 12, artistFont,
-                ColorUtil.fromARGB(255, 255, 255, (int)(120 * a)));
+                ColorUtil.fromARGB(203, 184, 185, (int)(120 * a)));
 
         float barY = y + BAR_H - PAD - BAR_HEIGHT - 3;
         float barW = textMaxW;
 
         ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(textX, barY, barW, BAR_HEIGHT, BAR_HEIGHT / 2),
-                new Paint().setColor(ColorUtil.fromARGB(255, 255, 255, (int)(30 * a))));
+                new Paint().setColor(ColorUtil.fromARGB(75, 62, 66, (int)(58 * a))));
 
         if (progress > 0.001f) {
             ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(textX, barY, barW * progress, BAR_HEIGHT, BAR_HEIGHT / 2),
-                    new Paint().setColor(ColorUtil.fromARGB(255, 255, 255, (int)(180 * a))));
+                    new Paint().setColor(ColorUtil.fromARGB(247, 181, 204, (int)(200 * a))));
         }
 
         String elapsed = formatMs(player.getCurrentPositionMs());
@@ -202,12 +215,116 @@ public class MusicPlayerHud extends HudElement {
         this.setHeight(BAR_H);
     }
 
+    private void renderMaterial3(DrawContext ctx, float x, float y, SongInfo song,
+                                  AudioPlayer player, float progress, float alpha) {
+        final float width = 142.5f;
+        final float height = 43.0f;
+        final float padding = 4.0f * SCALE;
+        final float artSize = 32.0f * SCALE;
+        final float artRadius = 4.0f * SCALE;
+        final float buttonSize = 20.0f * SCALE;
+        final float buttonRadius = buttonSize * 0.5f;
+        final float renderWidth = width * SCALE;
+        final float renderHeight = height * SCALE;
+        final float renderY = y + (1.0f - alpha) * 1.2f * SCALE;
+        final float textX = x + 42.0f * SCALE;
+        final float textRight = x + renderWidth - padding - buttonSize - 5.0f * SCALE;
+        final float textWidth = Math.max(0.0f, textRight - textX);
+        final int background = ColorUtil.fromARGB(57, 43, 49, (int) (alpha * 220.0f));
+        final int border = ColorUtil.fromARGB(86, 66, 73, (int) (alpha * 148.0f));
+        final int buttonBackground = ColorUtil.fromARGB(104, 76, 86, (int) (alpha * 234.0f));
+        final int primaryText = ColorUtil.fromARGB(245, 236, 235, (int) (alpha * 255.0f));
+        final int secondaryText = ColorUtil.fromARGB(205, 185, 186, (int) (alpha * 224.0f));
+        final int detailText = ColorUtil.fromARGB(176, 159, 160, (int) (alpha * 208.0f));
+        final int track = ColorUtil.fromARGB(76, 64, 67, (int) (alpha * 140.0f));
+        final int progressColor = ColorUtil.fromARGB(247, 181, 204, (int) (alpha * 255.0f));
+
+        if (glowSetting.getValue()) {
+            float glowRadius = glowRadiusSetting.getValue().floatValue();
+            int glowAlpha = glowAlphaSetting.getValue().intValue();
+            if (glowRadius > 0.0f && glowAlpha > 0) {
+                RenderUtil.drawShadow(ctx.getPoseStack(), x, renderY, renderWidth, renderHeight, (int) glowRadius,
+                        (int) ((int) (glowAlpha * alpha) << 24));
+                RenderUtil.enableBlend();
+            }
+        }
+
+        ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(x, renderY, renderWidth, renderHeight, 10.0f * SCALE),
+                new Paint().setColor(background));
+        ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(x, renderY, renderWidth, renderHeight, 10.0f * SCALE),
+                new Paint().setColor(border));
+
+        float artX = x + padding;
+        float artY = renderY + 3.0f * SCALE;
+        if (albumTexture != null) {
+            int artColor = ColorUtil.fromARGB((int) (255 * alpha), 255, 255, 255);
+            org.joml.Matrix4f pose = ctx.getPoseStack().last().pose();
+            DrawContext.getRoundedRectShader().drawTextured(pose,
+                    artX, artY, artX + artSize, artY + artSize,
+                    artRadius, artRadius, artRadius, artRadius,
+                    artColor, albumTexture.getGlId(), 0, 0, 1, 1);
+        } else {
+            ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(artX, artY, artSize, artSize, artRadius),
+                    new Paint().setColor(ColorUtil.fromARGB(78, 60, 66, (int) (alpha * 230.0f))));
+        }
+
+        String title = song.name;
+        float titleWidth = GlHelper.getStringWidth(title, coverTitleFont);
+        ctx.save();
+        ctx.clipRect(Rectangle.ofXYWH(textX, renderY + 6.5f * SCALE, textWidth, 15.0f * SCALE), true);
+        GlHelper.drawText(title, textX - titleScrollOffset, renderY + 9.5f * SCALE, coverTitleFont, primaryText);
+        ctx.restore();
+
+        if (titleWidth > textWidth) {
+            if (System.currentTimeMillis() - titleScrollTimestamp > 2000) {
+                titleScrollOffset += 0.20f;
+                if (titleScrollOffset > titleWidth + 10.0f) {
+                    titleScrollOffset = -textWidth;
+                    titleScrollTimestamp = System.currentTimeMillis();
+                }
+            }
+        } else {
+            titleScrollOffset = 0.0f;
+            titleScrollTimestamp = System.currentTimeMillis();
+        }
+
+        GlHelper.drawText(song.artist, textX, renderY + 24.0f * SCALE, coverArtistFont, secondaryText);
+
+        float buttonX = x + renderWidth - 4.0f * SCALE - buttonSize;
+        float buttonY = renderY + (height - buttonSize) * 0.5f;
+        ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(buttonX, buttonY, buttonSize, buttonSize, buttonRadius),
+                new Paint().setColor(buttonBackground));
+        float barW = 2.0f * SCALE;
+        float barH = 8.0f * SCALE;
+        float barGap = 2.4f * SCALE;
+        float iconX = buttonX + (buttonSize - (barW * 2.0f + barGap)) * 0.5f;
+        float iconY = buttonY + (buttonSize - barH) * 0.5f;
+        ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(iconX, iconY, barW, barH, 2.0f), new Paint().setColor(primaryText));
+        ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(iconX + barW + barGap, iconY, barW, barH, 2.0f), new Paint().setColor(primaryText));
+
+        float progressX = artX;
+        float progressY = renderY + artSize + 6.0f * SCALE;
+        float progressW = Math.max(0.0f, buttonX - 4.0f - progressX);
+        ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(progressX, progressY, progressW, 1.5f * SCALE, 0.75f * SCALE),
+                new Paint().setColor(track));
+        if (progress > 0.001f) {
+            ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(progressX, progressY,
+                            Math.max(2.0f * SCALE, progressW * progress), 1.5f * SCALE, 0.75f * SCALE),
+                    new Paint().setColor(progressColor));
+        }
+
+        this.setWidth(renderWidth);
+        this.setHeight(renderHeight);
+    }
+
     private void loadAlbumArt(SongInfo song) {
         if (albumLoading) return;
         if (song.id == albumSongId && albumTexture != null) return;
         if (song.id == albumSongId && albumRetryCount >= 2) return;
         if (song.id != albumSongId) {
             albumRetryCount = 0;
+            titleScrollOffset = 0.0f;
+            titleScrollTimestamp = System.currentTimeMillis();
         }
         albumSongId = song.id;
         albumTexture = null;

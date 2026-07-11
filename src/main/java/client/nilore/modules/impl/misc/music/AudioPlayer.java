@@ -13,6 +13,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class AudioPlayer {
@@ -26,6 +27,13 @@ public class AudioPlayer {
     private volatile Thread playbackThread;
     private volatile boolean paused;
 
+    private static final int SPECTRUM_BARS = 32;
+    private static final int ANALYSIS_WINDOW = 1024;
+    private final AtomicLong playbackGeneration = new AtomicLong();
+    private final AtomicReference<float[]> spectrumSnapshot = new AtomicReference<>(new float[0]);
+    private final float[] analysisSamples = new float[ANALYSIS_WINDOW];
+    private int analysisSampleCount;
+
     // time-based progress tracking
     private volatile long playStartMs;
     private volatile long pauseStartMs;
@@ -37,6 +45,7 @@ public class AudioPlayer {
 
     public void play(SongInfo song, String url) {
         stop();
+        long generation = playbackGeneration.incrementAndGet();
         this.currentSong = song;
         this.currentUrl = url;
         this.state.set(State.LOADING);
@@ -44,7 +53,7 @@ public class AudioPlayer {
         this.totalPausedMs = 0;
         this.playStartMs = System.currentTimeMillis();
         this.seekTargetMs = -1;
-        playbackThread = new Thread(() -> playInternal(url), "MusicPlayer-Playback");
+        playbackThread = new Thread(() -> playInternal(url, generation), "MusicPlayer-Playback");
         playbackThread.setDaemon(true);
         playbackThread.start();
     }
@@ -68,6 +77,9 @@ public class AudioPlayer {
     }
 
     public void stop() {
+        playbackGeneration.incrementAndGet();
+        spectrumSnapshot.set(new float[0]);
+        analysisSampleCount = 0;
         state.set(State.STOPPED);
         paused = false;
         seekTargetMs = -1;
@@ -152,7 +164,50 @@ public class AudioPlayer {
         return Math.max(0, now - playStartMs - paused);
     }
 
-    private void playInternal(String url) {
+    public float[] getSpectrumSnapshot() {
+        float[] snapshot = spectrumSnapshot.get();
+        return snapshot.length == 0 ? snapshot : snapshot.clone();
+    }
+
+    private void analyzePcm(byte[] buffer, int length, int channels, long generation) {
+        if (generation != playbackGeneration.get() || channels <= 0) return;
+        synchronized (analysisSamples) {
+            int frameSize = channels * 2;
+            for (int offset = 0; offset + frameSize <= length; offset += frameSize) {
+                float sample = 0;
+                for (int channel = 0; channel < channels; channel++) {
+                    int index = offset + channel * 2;
+                    short value = (short) ((buffer[index] & 0xFF) | (buffer[index + 1] << 8));
+                    sample += value / 32768f;
+                }
+                analysisSamples[analysisSampleCount++] = sample / channels;
+                if (analysisSampleCount == ANALYSIS_WINDOW) {
+                    publishSpectrum(generation);
+                    analysisSampleCount = 0;
+                }
+            }
+        }
+    }
+
+    private void publishSpectrum(long generation) {
+        if (generation != playbackGeneration.get()) return;
+        float[] result = new float[SPECTRUM_BARS];
+        for (int band = 0; band < SPECTRUM_BARS; band++) {
+            double real = 0;
+            double imaginary = 0;
+            double frequency = (band + 1) / (double) (SPECTRUM_BARS + 1);
+            for (int sample = 0; sample < ANALYSIS_WINDOW; sample++) {
+                double angle = 2 * Math.PI * frequency * sample;
+                real += analysisSamples[sample] * Math.cos(angle);
+                imaginary -= analysisSamples[sample] * Math.sin(angle);
+            }
+            double magnitude = Math.sqrt(real * real + imaginary * imaginary) / ANALYSIS_WINDOW;
+            result[band] = (float) Math.max(0, Math.min(1, Math.log1p(magnitude * 24) / Math.log(25)));
+        }
+        spectrumSnapshot.set(result);
+    }
+
+    private void playInternal(String url, long generation) {
         SourceDataLine localLine = null;
         try {
             System.out.println("[MusicPlayer] Starting playback: " + url);
@@ -258,6 +313,7 @@ public class AudioPlayer {
                     Thread.sleep(50);
                     continue;
                 }
+                analyzePcm(buffer, bytesRead, decoded.getChannels(), generation);
                 localLine.write(buffer, 0, bytesRead);
             }
 
@@ -269,12 +325,13 @@ public class AudioPlayer {
             if (pendingSeek >= 0 && state.get() != State.STOPPED) {
                 seekTargetMs = -1;
                 System.out.println("[MusicPlayer] Backward seek to " + pendingSeek + "ms, restarting stream");
-                playInternal(url); // recursive restart
+                playInternal(url, generation); // recursive restart
                 return;
             }
 
-            if (state.get() == State.PLAYING) {
+            if (state.get() == State.PLAYING && generation == playbackGeneration.get()) {
                 state.set(State.STOPPED);
+                spectrumSnapshot.set(new float[0]);
             }
             System.out.println("[MusicPlayer] Playback finished");
         } catch (InterruptedException e) {
@@ -282,8 +339,9 @@ public class AudioPlayer {
         } catch (Exception e) {
             System.err.println("[MusicPlayer] Playback failed: " + e.getClass().getSimpleName() + ": " + e.getMessage());
             e.printStackTrace();
-            if (state.get() != State.STOPPED) {
+            if (state.get() != State.STOPPED && generation == playbackGeneration.get()) {
                 state.set(State.STOPPED);
+                spectrumSnapshot.set(new float[0]);
             }
         } finally {
             if (localLine != null) {
