@@ -290,13 +290,17 @@ public class DrawContext {
     }
 
     public void drawArc(float x1, float y1, float x2, float y2, float startAngle, float sweepAngle, boolean unused, Paint paint) {
+        this.drawArc(x1, y1, x2, y2, startAngle, sweepAngle, unused, 32, paint);
+    }
+
+    public void drawArc(float x1, float y1, float x2, float y2, float startAngle, float sweepAngle, boolean unused, int segments, Paint paint) {
         this.setupColorShader();
         Matrix4f pose = this.poseStack.last().pose();
         float centerX = (x1 + x2) * 0.5f;
         float centerY = (y1 + y2) * 0.5f;
         float radius = Math.min(x2 - x1, y2 - y1) * 0.5f;
         float[] color = DrawContext.colorToFloats(paint.getColor());
-        int segments = 32;
+        segments = Math.max(3, segments);
         Tesselator tesselator = Tesselator.getInstance();
         BufferBuilder bufferBuilder = tesselator.getBuilder();
         if (paint.getCapStyle() == Paint.StrokeCap.STROKE) {

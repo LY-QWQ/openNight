@@ -43,6 +43,7 @@ import client.nilore.utils.game.FallingPlayer;
 import client.nilore.utils.game.MovementUtil;
 import client.nilore.utils.game.RayTraceUtil;
 import client.nilore.utils.game.RotationUtil;
+import client.nilore.utils.misc.ChatUtil;
 import client.nilore.utils.misc.PacketUtil;
 
 import client.nilore.utils.rotation.Rotation;
@@ -52,19 +53,22 @@ import client.nilore.event.EventTarget;
 public class Scaffold extends Module {
     public static Scaffold INSTANCE;
 
-    public final ModeSetting mode = new ModeSetting("Mode", "Normal", "Telly Bridge", "Keep Y").withDefault("Telly Bridge");
+    public final ModeSetting mode = new ModeSetting("Mode", "Normal", "Telly Bridge", "Keep Y").withDefault("Normal");
     public final NumberSetting tellyAirTicks = new NumberSetting("AirTicks", 1, 0, 3, 0.1, () -> this.mode.is("Telly Bridge"));
     public final NumberSetting tellyPlaceDelay = new NumberSetting("PlaceDelay", 0, 0, 20, 1, () -> this.mode.is("Telly Bridge"));
-    public final BooleanSetting eagle = new BooleanSetting("Eagle", false, () -> this.mode.is("Normal"));
+    public final BooleanSetting eagle = new BooleanSetting("Eagle", true, () -> this.mode.is("Normal"));
     public final BooleanSetting renderItemSpoof = new BooleanSetting("Render Item Spoof", true);
     public final BooleanSetting clutch = new BooleanSetting("Clutch", true);
     public final ModeSetting swingMode = new ModeSetting("Swing", "Both", "Server").withDefault("Both");
     public final BooleanSetting blockCounter = new BooleanSetting("Block Counter", true);
+    public final ModeSetting blockCounterStyle = new ModeSetting("Block Counter Style", "Simple", "Modern").withDefault("Simple");
+    public final BooleanSetting onTickRot = new BooleanSetting("OnTickRot", false);
     public final NumberSetting rotationSpeed = new NumberSetting("Rotation Speed", 180, 0, 360, 5, () -> !this.syncRotSpeed.getValue());
     public final BooleanSetting syncRotSpeed = new BooleanSetting("Sync RotSpeed", false);
     public final NumberSetting turnSpeed = new NumberSetting("Turn Speed", 75, 0, 360, 5, this.syncRotSpeed::getValue);
     public final NumberSetting returnSpeed = new NumberSetting("Return Speed", 120, 0, 360, 5, this.syncRotSpeed::getValue);
-    public final NumberSetting predictTicks = new NumberSetting("Predict Ticks", 1, 1, 3, 1);
+    public final NumberSetting predictTicks = new NumberSetting("Predict Ticks", 2, 1, 3, 1);
+    public final BooleanSetting print_log = new BooleanSetting("Log",false);
 
     public Rotation rots = new Rotation();
     public Rotation lastRots = new Rotation();
@@ -89,6 +93,8 @@ public class Scaffold extends Module {
     private static final FontRenderer shelfBlocksFont = FontPresets.axiformaBold(13);
     private final client.nilore.utils.animation.SpringAnimation shelfProgress =
             new client.nilore.utils.animation.SpringAnimation(300.0f, 1.0f, 25.0f, 1.0f);
+    private int shelfInitialBlocks;
+    private boolean shelfHudInitialized;
     private long hudLastFrameTime;
 
 
@@ -114,6 +120,10 @@ public class Scaffold extends Module {
             this.packetBatches.clear();
             this.packetBatches.add(new CopyOnWriteArrayList<>());
         }
+        this.shelfHudInitialized = mc.player != null;
+        this.shelfInitialBlocks = this.shelfHudInitialized ? this.getBlockSlot() : 0;
+        this.shelfProgress.reset(0.0f);
+        this.hudLastFrameTime = 0L;
         super.onEnable();
     }
 
@@ -270,35 +280,62 @@ public class Scaffold extends Module {
         if (this.currentPlacement == null) {
             ClientBase.delayPackets.clear();
         } else if (this.clutch.getValue() && (!this.canBuildNow || this.velocityDelay > 0) && this.rotationDelay <= 8) {
-            Vec3 targetVec = getFaceCenter(this.currentPlacement.position, this.currentPlacement.facing);
-            Vec3 predictedEye = new Vec3(mc.player.getX() + mc.player.getDeltaMovement().x, mc.player.getY() + mc.player.getEyeHeight() + mc.player.getDeltaMovement().y, mc.player.getZ() + mc.player.getDeltaMovement().z);
-            Rotation rotationToBlock = RotationUtil.rotationFromPoints(targetVec.x, targetVec.y, targetVec.z, predictedEye.x, predictedEye.y, predictedEye.z);
-            Rotation previousTarget = RotationHandler.targetRotation;
-            this.rots.setYawPitch(rotationToBlock.getYaw(), rotationToBlock.getPitch());
-            RotationHandler.setTargetRotation(this.rots);
-            this.rotationDelay++;
-            ClientBase.delayPackets.add(() -> {});
-            ClientBase.delayPackets.add(() -> {
-                RotationHandler.prevSentRotation.setYawPitch(rotationToBlock.getYaw(), rotationToBlock.getPitch());
-                float yaw = rotationToBlock.getYaw();
-                if (yaw > -360.0f && yaw < 360.0f) {
-                    yaw += 720.0f;
-                }
-                if (previousTarget != null) {
-                    if (previousTarget.getYaw() != rotationToBlock.getYaw()) {
+            if (print_log.getValue()) ChatUtil.print(true, "§6Skipped 1Tick§6.");
+            boolean useC06 = this.onTickRot.getValue() || !this.canBuildNow;
+            if (useC06) {
+                // C06 模式：不转头，让 onPreMotion 中的 c06Place 处理放置
+                this.rots.setYawPitch(mc.player.getYRot(), mc.player.getXRot());
+                RotationHandler.setTargetRotation(this.rots);
+                this.rotationDelay++;
+            } else {
+                Vec3 targetVec = getFaceCenter(this.currentPlacement.position, this.currentPlacement.facing);
+                Vec3 predictedEye = new Vec3(mc.player.getX() + mc.player.getDeltaMovement().x, mc.player.getY() + mc.player.getEyeHeight() + mc.player.getDeltaMovement().y, mc.player.getZ() + mc.player.getDeltaMovement().z);
+                Rotation rotationToBlock = RotationUtil.rotationFromPoints(targetVec.x, targetVec.y, targetVec.z, predictedEye.x, predictedEye.y, predictedEye.z);
+                Rotation previousTarget = RotationHandler.targetRotation;
+                this.rots.setYawPitch(rotationToBlock.getYaw(), rotationToBlock.getPitch());
+                RotationHandler.setTargetRotation(this.rots);
+                this.rotationDelay++;
+                ClientBase.delayPackets.add(() -> {});
+                ClientBase.delayPackets.add(() -> {
+                    RotationHandler.prevSentRotation.setYawPitch(rotationToBlock.getYaw(), rotationToBlock.getPitch());
+                    float yaw = rotationToBlock.getYaw();
+                    if (yaw > -360.0f && yaw < 360.0f) {
+                        yaw += 720.0f;
+                    }
+                    if (previousTarget != null) {
+                        if (previousTarget.getYaw() != rotationToBlock.getYaw()) {
+                            PacketUtil.sendQueued(new ServerboundMovePlayerPacket.Rot(yaw, rotationToBlock.getPitch(), mc.player.onGround()));
+                        }
+                    } else {
                         PacketUtil.sendQueued(new ServerboundMovePlayerPacket.Rot(yaw, rotationToBlock.getPitch(), mc.player.onGround()));
                     }
-                } else {
-                    PacketUtil.sendQueued(new ServerboundMovePlayerPacket.Rot(yaw, rotationToBlock.getPitch(), mc.player.onGround()));
-                }
-                this.doSnap();
-                this.onTick(event);
-            });
+                    this.doSnap();
+                    this.onTick(event);
+                });
+            }
         } else {
             this.canBuildNow = true;
+            boolean wasInRescue = this.rotationDelay > 0;
             ClientBase.delayPackets.clear();
             this.rotationDelay = 0;
-            this.calculateTargetRotation();
+
+            // SkipTicks 结束后无论 onTickRot 设置如何，都发 C06 恢复服务端旋转追踪
+            if (wasInRescue) {
+                mc.getConnection().send(new ServerboundMovePlayerPacket.PosRot(
+                        mc.player.getX(), mc.player.getY(), mc.player.getZ(),
+                        mc.player.getYRot() + rotationJitter(),
+                        mc.player.getXRot() + rotationJitter(),
+                        mc.player.onGround()
+                ));
+            }
+
+            if (this.onTickRot.getValue()) {
+                // OnTickRot: 不转头, 保持当前视角, 只靠 C06 发包欺骗
+                this.rots.setYawPitch(mc.player.getYRot(), mc.player.getXRot());
+            } else {
+                this.calculateTargetRotation();
+            }
+
             if (this.mode.is("Telly Bridge")) {
                 mc.options.keyJump.setDown(MovementUtil.isMoving() || jumpHeld);
                 if (this.airTicks < this.tellyAirTicks.getValue().intValue() && MovementUtil.isMoving()) {
@@ -321,6 +358,15 @@ public class Scaffold extends Module {
     public void onPreMotion(PreMotionEvent event) {
         event.setCancelled(true);
         if (mc.screen != null || mc.player == null || this.currentPlacement == null) return;
+
+        // C06 旋转欺骗模式: OnTickRot 开启或 SkipTicks 期间强制启用
+        if (this.onTickRot.getValue() || (!this.canBuildNow && this.rotationDelay > 0)) {
+            if (this.mode.is("Telly Bridge") && this.airTicks < this.tellyAirTicks.getValue().intValue()) return;
+            if (this.mode.is("Telly Bridge") && this.tellyPlaceDelay.getValue().intValue() > 0 && this.tellyPlaceDelayTimer < this.tellyPlaceDelay.getValue().intValue()) return;
+            this.c06Place();
+            return;
+        }
+
         if (this.mode.is("Telly Bridge") && this.airTicks < this.tellyAirTicks.getValue().intValue()) return;
         if (this.mode.is("Telly Bridge") && this.tellyPlaceDelay.getValue().intValue() > 0 && this.tellyPlaceDelayTimer < this.tellyPlaceDelay.getValue().intValue()) return;
         boolean canRayTrace = RayTraceUtil.canRayTrace(RotationHandler.targetRotation, this.currentPlacement.facing, this.currentPlacement.position, true);
@@ -340,20 +386,31 @@ public class Scaffold extends Module {
     private void renderShelfHud(Render2DEvent event) {
         if (mc.player == null) return;
 
-        int totalBlocks = this.getBlockSlot();
-        if (totalBlocks == 0) return;
+        if (!this.shelfHudInitialized) {
+            this.shelfInitialBlocks = this.getBlockSlot();
+            this.shelfHudInitialized = true;
+            this.shelfProgress.reset(0.0f);
+            this.hudLastFrameTime = 0L;
+        }
 
+        int totalBlocks = this.getBlockSlot();
+        float target = Mth.clamp((float) totalBlocks / Math.max(this.shelfInitialBlocks, 64), 0.0f, 1.0f);
         long now = System.currentTimeMillis();
         if (this.hudLastFrameTime == 0L) this.hudLastFrameTime = now;
         float deltaSec = Math.min((now - this.hudLastFrameTime) / 1000.0f, 0.05f);
         this.hudLastFrameTime = now;
-
-        int maxBlocks = Math.max(64, totalBlocks);
-        float target = Math.min(1.0f, Math.max(0.0f, (float) totalBlocks / maxBlocks));
         this.shelfProgress.setTargetValue(target);
         this.shelfProgress.update(deltaSec);
-        float animProg = this.shelfProgress.getValue();
+        float animProg = Mth.clamp(this.shelfProgress.getValue(), 0.0f, 1.0f);
 
+        if (this.blockCounterStyle.is("Modern")) {
+            this.renderModernShelfHud(event, totalBlocks, animProg);
+        } else {
+            this.renderSimpleShelfHud(event, totalBlocks, animProg);
+        }
+    }
+
+    private void renderSimpleShelfHud(Render2DEvent event, int totalBlocks, float animProg) {
         String labelStr = "Scaffold";
         String bpsStr = String.format("%.1f b/s", MovementUtil.getSpeedBps());
         String blocksStr = totalBlocks + "blocks";
@@ -384,6 +441,58 @@ public class Scaffold extends Module {
                     drawContext.drawRoundedRect(RoundedRectangle.ofXYWHR(barX, barY, barWidth, barHeight, 1.0f), paint);
                     drawContext.restore();
                 }
+            }
+        });
+    }
+
+    private void renderModernShelfHud(Render2DEvent event, int totalBlocks, float animProg) {
+        String blocksStr = totalBlocks + " blocks";
+        float textWidth = shelfBlocksFont.getWidth(blocksStr);
+        float screenWidth = mc.getWindow().getGuiScaledWidth();
+        float screenHeight = mc.getWindow().getGuiScaledHeight();
+        float hudHeight = 30.0f;
+        float ringDiameter = hudHeight - 10.0f;
+        float hudWidth = 5.0f + ringDiameter + 8.0f + textWidth + 12.0f;
+        float hudX = (screenWidth - hudWidth) / 2.0f;
+        float hudY = screenHeight / 2.0f + 12.0f;
+        float ringX = hudX + 5.0f;
+        float ringY = hudY + (hudHeight - ringDiameter) / 2.0f;
+        float textX = ringX + ringDiameter + 8.0f;
+        float textY = hudY + hudHeight / 2.0f - shelfBlocksFont.getMetrics().capHeight() / 2.0f + 4.0f;
+
+        Renderer.render(event.guiGraphics(), drawContext -> {
+            try (Paint paint = new Paint()) {
+                paint.setColor(0xCC10151C);
+                drawContext.drawRoundedRect(RoundedRectangle.ofXYWHR(hudX, hudY, hudWidth, hudHeight, hudHeight / 2.0f), paint);
+
+                float strokeWidth = 2.25f;
+                float centerX = ringX + ringDiameter / 2.0f;
+                float centerY = ringY + ringDiameter / 2.0f;
+                float radius = ringDiameter / 2.0f;
+                paint.setAntialias(true);
+                paint.setStrokeWidth(strokeWidth);
+                paint.setStrokeCap(Paint.StrokeCap.STROKE);
+                paint.setStrokeJoin(Paint.StrokeJoin.ROUND);
+                paint.setColor(0x5538D9FF);
+                drawContext.drawArc(ringX, ringY, ringX + ringDiameter, ringY + ringDiameter, -90.0f, 360.0f, false, 64, paint);
+                if (animProg > 0.001f) {
+                    float sweepAngle = 360.0f * animProg;
+                    paint.setColor(0xFF24D8FF);
+                    drawContext.drawArc(ringX, ringY, ringX + ringDiameter, ringY + ringDiameter, -90.0f, sweepAngle, false, 64, paint);
+                    if (animProg < 0.999f) {
+                        float capRadius = strokeWidth / 2.0f;
+                        float endAngle = (float) Math.toRadians(-90.0f + sweepAngle);
+                        float endX = centerX + (float) Math.cos(endAngle) * radius;
+                        float endY = centerY + (float) Math.sin(endAngle) * radius;
+                        paint.setStrokeCap(Paint.StrokeCap.FILL);
+                        drawContext.drawRoundedRect(RoundedRectangle.ofXYWHR(centerX - capRadius, centerY - radius - capRadius, strokeWidth, strokeWidth, capRadius), paint);
+                        drawContext.drawRoundedRect(RoundedRectangle.ofXYWHR(endX - capRadius, endY - capRadius, strokeWidth, strokeWidth, capRadius), paint);
+                    }
+                }
+
+                paint.setStrokeCap(Paint.StrokeCap.FILL);
+                paint.setColor(0xFFFFFFFF);
+                drawContext.drawString(blocksStr, textX, textY, shelfBlocksFont, paint);
             }
         });
     }
@@ -604,6 +713,87 @@ public class Scaffold extends Module {
         if (mc.player == null || mc.level == null) return false;
         BlockPos below = BlockPos.containing(mc.player.getX(), mc.player.getY() - 0.5, mc.player.getZ());
         return mc.level.isEmptyBlock(below) && BlockUtil.isPlaceable(mc.player.getMainHandItem());
+    }
+
+    private float rotationJitter() {
+        float offset = (float) (Math.random() * 0.04 + 0.03);
+        return Math.random() > 0.5 ? offset : -offset;
+    }
+
+    private void c06Place() {
+        if (this.currentPlacement == null || mc.player == null || mc.gameMode == null) return;
+
+        Direction facing = this.currentPlacement.facing;
+        if (facing == null) return;
+        if (facing == Direction.UP && !mc.player.onGround() && MovementUtil.isMoving()
+                && !mc.options.keyJump.isDown() && !this.mode.is("Normal")) return;
+
+        // 切到方块槽位
+        int prevSlot = mc.player.getInventory().selected;
+        int placeableSlot = -1;
+        for (int i = 0; i < 9; i++) {
+            ItemStack stack = mc.player.getInventory().getItem(i);
+            if (stack.getItem() instanceof BlockItem && BlockUtil.isPlaceable(stack)) {
+                placeableSlot = i;
+                break;
+            }
+        }
+        if (placeableSlot == -1) return;
+        if (placeableSlot != prevSlot) {
+            mc.player.getInventory().selected = placeableSlot;
+        }
+
+        if (!shouldBuild()) {
+            if (prevSlot != placeableSlot) mc.player.getInventory().selected = prevSlot;
+            return;
+        }
+
+        // 计算朝向放置面的旋转
+        Vec3 faceCenter = getFaceCenter(this.currentPlacement.position, facing);
+        Rotation targetRot = RotationUtil.exactRotation(mc.player.getEyePosition(), faceCenter);
+
+        // 用即将发包的旋转做射线校验，打不中就不发
+        if (!RayTraceUtil.canRayTrace(targetRot, facing, this.currentPlacement.position, true)) {
+            if (prevSlot != placeableSlot) mc.player.getInventory().selected = prevSlot;
+            return;
+        }
+
+        // 保存原视角
+        float origYaw = mc.player.getYRot();
+        float origPitch = mc.player.getXRot();
+
+        // 发包：C06 转到目标方向（带微抖）
+        mc.getConnection().send(new ServerboundMovePlayerPacket.PosRot(
+                mc.player.getX(), mc.player.getY(), mc.player.getZ(),
+                targetRot.getYaw() + rotationJitter(),
+                targetRot.getPitch() + rotationJitter(),
+                mc.player.onGround()
+        ));
+
+        // 放置方块
+        BlockHitResult hit = new BlockHitResult(
+                getHitVec(this.currentPlacement.position, facing), facing,
+                this.currentPlacement.position, false);
+        InteractionResult result = mc.gameMode.useItemOn(mc.player, InteractionHand.MAIN_HAND, hit);
+
+        if (result == InteractionResult.SUCCESS) {
+            if (!this.swingMode.is("Server")) {
+                mc.player.swing(InteractionHand.MAIN_HAND);
+            }
+        }
+
+        // 发包：C06 恢复原视角（带微抖）
+        mc.getConnection().send(new ServerboundMovePlayerPacket.PosRot(
+                mc.player.getX(), mc.player.getY(), mc.player.getZ(),
+                origYaw + rotationJitter(),
+                origPitch + rotationJitter(),
+                mc.player.onGround()
+        ));
+
+        // 恢复槽位
+        if (prevSlot != placeableSlot) {
+            mc.player.getInventory().selected = prevSlot;
+        }
     }
 
     private void doSnap() {

@@ -3,14 +3,12 @@ package client.nilore.hud;
 import com.mojang.blaze3d.platform.NativeImage;
 import java.io.ByteArrayInputStream;
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import client.nilore.event.impl.GlRenderEvent;
 import client.nilore.event.impl.Render2DEvent;
 import client.nilore.modules.impl.misc.MusicPlayer;
 import client.nilore.modules.impl.misc.music.AudioPlayer;
+import client.nilore.modules.impl.misc.music.MusicHttp;
 import client.nilore.modules.impl.misc.music.NeteaseApi;
 import client.nilore.modules.impl.misc.music.SongInfo;
 import client.nilore.render.DrawContext;
@@ -42,18 +40,18 @@ public class MusicPlayerHud extends HudElement {
     private final NumberSetting glowRadiusSetting = new NumberSetting("Glow Radius", 12, 4, 40, 1);
     private final NumberSetting glowAlphaSetting = new NumberSetting("Glow Alpha", 120, 0, 255, 1);
 
-    private static final float ART_SIZE = 32 * SCALE;
-    private static final float GAP = 8 * SCALE;
-    private static final float PAD = 8 * SCALE;
-    private static final float BAR_H = ART_SIZE + PAD * 2 + 7f * SCALE;
-    private static final float TEXT_W = 160 * SCALE;
-    private static final float BAR_W = PAD + ART_SIZE + GAP + TEXT_W + PAD;
-    private static final float RADIUS = 4 * SCALE;
-    private static final float BAR_HEIGHT = 2f * SCALE;
+    private static final float SIMPLE_ART_SIZE = 32;
+    private static final float SIMPLE_GAP = 8;
+    private static final float SIMPLE_PAD = 8;
+    private static final float SIMPLE_BAR_H = SIMPLE_ART_SIZE + SIMPLE_PAD * 2;
+    private static final float SIMPLE_TEXT_W = 160;
+    private static final float SIMPLE_BAR_W = SIMPLE_PAD + SIMPLE_ART_SIZE + SIMPLE_GAP + SIMPLE_TEXT_W + SIMPLE_PAD;
+    private static final float SIMPLE_RADIUS = 10;
+    private static final float SIMPLE_BAR_HEIGHT = 2;
 
-    private final FontRenderer titleFont = FontPresets.pingfang(19.5f * SCALE);
-    private final FontRenderer artistFont = FontPresets.pingfang(15.5f * SCALE);
-    private final FontRenderer timeFont = FontPresets.pingfang(12.5f * SCALE);
+    private final FontRenderer titleFont = FontPresets.pingfang(17);
+    private final FontRenderer artistFont = FontPresets.pingfang(14);
+    private final FontRenderer timeFont = FontPresets.pingfang(13);
     private final FontRenderer materialTitleFont = FontPresets.pingfang(16 * SCALE);
     private final FontRenderer materialArtistFont = FontPresets.pingfang(12 * SCALE);
     private final FontRenderer materialTimeFont = FontPresets.pingfang(11 * SCALE);
@@ -69,8 +67,8 @@ public class MusicPlayerHud extends HudElement {
 
     public MusicPlayerHud() {
         super("MusicPlayerHud");
-        this.setWidth(BAR_W);
-        this.setHeight(BAR_H);
+        this.setWidth(SIMPLE_BAR_W);
+        this.setHeight(SIMPLE_BAR_H);
     }
 
     @Override
@@ -139,40 +137,40 @@ public class MusicPlayerHud extends HudElement {
             int gAlpha = glowAlphaSetting.getValue().intValue();
             if (gAlpha > 0 && gRadius > 0.0f) {
                 RenderUtil.drawShadow(ctx.getPoseStack(),
-                        x, y, BAR_W, BAR_H, (int) gRadius, (int) ((gAlpha << 24) | 0x000000));
+                        x, y, SIMPLE_BAR_W, SIMPLE_BAR_H, (int) gRadius, (int) ((gAlpha << 24) | 0x000000));
                 RenderUtil.enableBlend();
             }
         }
         int bgAlpha = bgAlphaSetting.getValue().intValue();
-        ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(x, y, BAR_W, BAR_H, RADIUS),
-                new Paint().setColor(ColorUtil.fromARGB(56, 42, 48, (int) (bgAlpha * a))));
+        ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(x, y, SIMPLE_BAR_W, SIMPLE_BAR_H, SIMPLE_RADIUS),
+                new Paint().setColor(ColorUtil.fromARGB(0, 0, 0, (int) (bgAlpha * a))));
 
         // album art (rounded, equal padding)
-        float artX = x + PAD;
-        float artY = y + PAD;
+        float artX = x + SIMPLE_PAD;
+        float artY = y + SIMPLE_PAD;
         float artRadius = 6;
         if (albumTexture != null) {
             int artColor = ColorUtil.fromARGB(255, 255, 255, (int)(255 * a));
             org.joml.Matrix4f pose = ctx.getPoseStack().last().pose();
             DrawContext.getRoundedRectShader().drawTextured(pose,
-                    artX, artY, artX + ART_SIZE, artY + ART_SIZE,
+                    artX, artY, artX + SIMPLE_ART_SIZE, artY + SIMPLE_ART_SIZE,
                     artRadius, artRadius, artRadius, artRadius,
                     artColor, albumTexture.getGlId(), 0, 0, 1, 1);
         } else {
-            ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(artX, artY, ART_SIZE, ART_SIZE, artRadius),
-                    new Paint().setColor(ColorUtil.fromARGB(78, 60, 66, (int)(18 * a))));
+            ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(artX, artY, SIMPLE_ART_SIZE, SIMPLE_ART_SIZE, artRadius),
+                    new Paint().setColor(ColorUtil.fromARGB(255, 255, 255, (int)(15 * a))));
         }
 
         // text area (to the right of album art)
-        float textX = artX + ART_SIZE + GAP;
-        float textMaxW = TEXT_W;
+        float textX = artX + SIMPLE_ART_SIZE + SIMPLE_GAP;
+        float textMaxW = SIMPLE_TEXT_W;
         String title = song.name;
         float titleW = GlHelper.getStringWidth(title, titleFont);
 
         ctx.save();
-        ctx.clipRect(Rectangle.ofXYWH(textX, y + 2, textMaxW, BAR_H - 4), true);
-        GlHelper.drawText(title, textX - titleScrollOffset, y + PAD, titleFont,
-                ColorUtil.fromARGB(243, 235, 234, (int)(255 * a)));
+        ctx.clipRect(Rectangle.ofXYWH(textX, y + 2, textMaxW, SIMPLE_BAR_H - 4), true);
+        GlHelper.drawText(title, textX - titleScrollOffset, y + SIMPLE_PAD, titleFont,
+                ColorUtil.fromARGB(255, 255, 255, (int)(255 * a)));
         ctx.restore();
 
         if (titleW > textMaxW) {
@@ -188,18 +186,18 @@ public class MusicPlayerHud extends HudElement {
             titleScrollTimestamp = System.currentTimeMillis();
         }
 
-        GlHelper.drawText(song.artist, textX, y + PAD + 12, artistFont,
-                ColorUtil.fromARGB(203, 184, 185, (int)(120 * a)));
+        GlHelper.drawText(song.artist, textX, y + SIMPLE_PAD + 12, artistFont,
+                ColorUtil.fromARGB(255, 255, 255, (int)(120 * a)));
 
-        float barY = y + BAR_H - PAD - BAR_HEIGHT - 3;
+        float barY = y + SIMPLE_BAR_H - SIMPLE_PAD - SIMPLE_BAR_HEIGHT - 3;
         float barW = textMaxW;
 
-        ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(textX, barY, barW, BAR_HEIGHT, BAR_HEIGHT / 2),
-                new Paint().setColor(ColorUtil.fromARGB(75, 62, 66, (int)(58 * a))));
+        ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(textX, barY, barW, SIMPLE_BAR_HEIGHT, SIMPLE_BAR_HEIGHT / 2),
+                new Paint().setColor(ColorUtil.fromARGB(255, 255, 255, (int)(30 * a))));
 
         if (progress > 0.001f) {
-            ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(textX, barY, barW * progress, BAR_HEIGHT, BAR_HEIGHT / 2),
-                    new Paint().setColor(ColorUtil.fromARGB(247, 181, 204, (int)(200 * a))));
+            ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(textX, barY, barW * progress, SIMPLE_BAR_HEIGHT, SIMPLE_BAR_HEIGHT / 2),
+                    new Paint().setColor(ColorUtil.fromARGB(255, 255, 255, (int)(180 * a))));
         }
 
         String elapsed = formatMs(player.getCurrentPositionMs());
@@ -211,8 +209,8 @@ public class MusicPlayerHud extends HudElement {
         GlHelper.drawText(total, textX + barW - totalW, barY + 5, timeFont,
                 ColorUtil.fromARGB(255, 255, 255, timeAlpha));
 
-        this.setWidth(BAR_W);
-        this.setHeight(BAR_H);
+        this.setWidth(SIMPLE_BAR_W);
+        this.setHeight(SIMPLE_BAR_H);
     }
 
     private void renderMaterial3(DrawContext ctx, float x, float y, SongInfo song,
@@ -304,7 +302,7 @@ public class MusicPlayerHud extends HudElement {
 
         float progressX = artX;
         float progressY = renderY + artSize + 6.0f * SCALE;
-        float progressW = Math.max(0.0f, buttonX - 4.0f - progressX);
+        float progressW = renderWidth - padding * 2.0f;
         ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(progressX, progressY, progressW, 1.5f * SCALE, 0.75f * SCALE),
                 new Paint().setColor(track));
         if (progress > 0.001f) {
@@ -335,13 +333,7 @@ public class MusicPlayerHud extends HudElement {
         NeteaseApi.getAlbumPicUrl(song.albumPicUrl).thenAccept(picUrl -> {
             if (picUrl == null || picUrl.isEmpty()) { albumLoading = false; return; }
             try {
-                HttpClient client = HttpClient.newHttpClient();
-                HttpRequest req = HttpRequest.newBuilder()
-                        .uri(URI.create(picUrl))
-                        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0")
-                        .GET()
-                        .build();
-                byte[] bytes = client.send(req, HttpResponse.BodyHandlers.ofByteArray()).body();
+                byte[] bytes = MusicHttp.getBytes(URI.create(picUrl));
                 if (bytes != null && bytes.length > 100) {
                     albumBytes = bytes;
                 } else {

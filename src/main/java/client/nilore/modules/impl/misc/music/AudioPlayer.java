@@ -8,9 +8,6 @@ import javax.sound.sampled.FloatControl;
 import javax.sound.sampled.SourceDataLine;
 import java.io.BufferedInputStream;
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.concurrent.atomic.AtomicLong;
@@ -44,6 +41,10 @@ public class AudioPlayer {
     private volatile long bytesConsumedFromStream = 0;
 
     public void play(SongInfo song, String url) {
+        play(song, url, null);
+    }
+
+    public void play(SongInfo song, String url, Runnable onNaturalEnd) {
         stop();
         long generation = playbackGeneration.incrementAndGet();
         this.currentSong = song;
@@ -53,7 +54,7 @@ public class AudioPlayer {
         this.totalPausedMs = 0;
         this.playStartMs = System.currentTimeMillis();
         this.seekTargetMs = -1;
-        playbackThread = new Thread(() -> playInternal(url, generation), "MusicPlayer-Playback");
+        playbackThread = new Thread(() -> playInternal(url, generation, song, onNaturalEnd), "MusicPlayer-Playback");
         playbackThread.setDaemon(true);
         playbackThread.start();
     }
@@ -207,20 +208,14 @@ public class AudioPlayer {
         spectrumSnapshot.set(result);
     }
 
-    private void playInternal(String url, long generation) {
+    private void playInternal(String url, long generation, SongInfo song, Runnable onNaturalEnd) {
         SourceDataLine localLine = null;
+        boolean reachedEnd = false;
+        boolean naturalEnd = false;
         try {
             System.out.println("[MusicPlayer] Starting playback: " + url);
-            HttpClient client = HttpClient.newHttpClient();
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(url))
-                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0")
-                    .build();
-
-            HttpResponse<java.io.InputStream> resp = client.send(request,
-                    HttpResponse.BodyHandlers.ofInputStream());
-
-            BufferedInputStream bis = new BufferedInputStream(resp.body());
+            MusicHttp.StreamResponse response = MusicHttp.getInputStream(URI.create(url));
+            BufferedInputStream bis = new BufferedInputStream(response.body());
             AudioInputStream rawStream = AudioSystem.getAudioInputStream(bis);
             AudioFormat baseFormat = rawStream.getFormat();
 
@@ -242,7 +237,7 @@ public class AudioPlayer {
                 if (frames > 0) {
                     currentSong.duration = (long)(frames / baseFormat.getSampleRate() * 1000);
                 } else {
-                    long contentLength = resp.headers().firstValueAsLong("Content-Length").orElse(-1);
+                    long contentLength = response.headers().firstValueAsLong("Content-Length").orElse(-1);
                     if (contentLength > 0) {
                         int bytesPerSec = (int)(baseFormat.getSampleRate() * baseFormat.getFrameSize());
                         if (bytesPerSec > 0) {
@@ -269,8 +264,15 @@ public class AudioPlayer {
             int sampleRate = (int) decoded.getSampleRate();
 
             byte[] buffer = new byte[4096];
+            byte[] pcmBuffer = new byte[buffer.length + bytesPerFrame - 1];
+            int pendingPcmLength = 0;
             int bytesRead;
-            while ((bytesRead = ais.read(buffer, 0, buffer.length)) != -1) {
+            while (true) {
+                bytesRead = ais.read(buffer, 0, buffer.length);
+                if (bytesRead == -1) {
+                    reachedEnd = true;
+                    break;
+                }
                 bytesConsumedFromStream += bytesRead;
                 if (Thread.currentThread().isInterrupted() || state.get() == State.STOPPED) break;
 
@@ -301,6 +303,7 @@ public class AudioPlayer {
                     }
 
                     localLine.flush();
+                    pendingPcmLength = 0;
                     playStartMs = System.currentTimeMillis() - seek;
                     totalPausedMs = 0;
                     if (paused) {
@@ -313,8 +316,18 @@ public class AudioPlayer {
                     Thread.sleep(50);
                     continue;
                 }
-                analyzePcm(buffer, bytesRead, decoded.getChannels(), generation);
-                localLine.write(buffer, 0, bytesRead);
+
+                System.arraycopy(buffer, 0, pcmBuffer, pendingPcmLength, bytesRead);
+                int pcmLength = pendingPcmLength + bytesRead;
+                int completeLength = pcmLength - pcmLength % bytesPerFrame;
+                if (completeLength > 0) {
+                    analyzePcm(pcmBuffer, completeLength, decoded.getChannels(), generation);
+                    localLine.write(pcmBuffer, 0, completeLength);
+                }
+                pendingPcmLength = pcmLength - completeLength;
+                if (pendingPcmLength > 0) {
+                    System.arraycopy(pcmBuffer, completeLength, pcmBuffer, 0, pendingPcmLength);
+                }
             }
 
             ais.close();
@@ -325,11 +338,14 @@ public class AudioPlayer {
             if (pendingSeek >= 0 && state.get() != State.STOPPED) {
                 seekTargetMs = -1;
                 System.out.println("[MusicPlayer] Backward seek to " + pendingSeek + "ms, restarting stream");
-                playInternal(url, generation); // recursive restart
+                playInternal(url, generation, song, onNaturalEnd); // recursive restart
                 return;
             }
 
-            if (state.get() == State.PLAYING && generation == playbackGeneration.get()) {
+            naturalEnd = reachedEnd
+                    && state.get() == State.PLAYING
+                    && generation == playbackGeneration.get();
+            if (naturalEnd) {
                 state.set(State.STOPPED);
                 spectrumSnapshot.set(new float[0]);
             }
@@ -348,6 +364,9 @@ public class AudioPlayer {
                 try { localLine.drain(); } catch (Exception ignored) {}
                 try { localLine.close(); } catch (Exception ignored) {}
                 if (currentLine == localLine) currentLine = null;
+            }
+            if (naturalEnd && generation == playbackGeneration.get() && onNaturalEnd != null) {
+                onNaturalEnd.run();
             }
         }
     }

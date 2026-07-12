@@ -1,9 +1,7 @@
 package client.nilore.modules.impl.combat.antikb;
 
 import java.util.concurrent.LinkedBlockingDeque;
-import net.minecraft.network.PacketListener;
 import net.minecraft.network.protocol.Packet;
-import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundAnimatePacket;
 import net.minecraft.network.protocol.game.ClientboundContainerClosePacket;
 import net.minecraft.network.protocol.game.ClientboundDisconnectPacket;
@@ -22,7 +20,6 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.EntityHitResult;
@@ -47,15 +44,14 @@ import client.nilore.utils.misc.ChatUtil;
 import client.nilore.utils.rotation.Rotation;
 import client.nilore.utils.rotation.RotationHandler;
 
-public class NoXZMode extends AntiKBMode {
+public class NoXZMode
+extends AntiKBMode {
     public static NoXZMode INSTANCE;
     public static boolean isAttacking;
     public static int attackCount;
     private int attackCooldown = 0;
-
     private Entity attackTarget = null;
     private Entity pendingTarget = null;
-
     private int attacksRemaining = 0;
     private int flagCooldown = 0;
     private boolean shouldJump = false;
@@ -64,12 +60,19 @@ public class NoXZMode extends AntiKBMode {
     private boolean isSuspending = false;
     private int suspendTicks = 0;
     private ClientboundSetEntityMotionPacket knockbackPacket = null;
-    private final LinkedBlockingDeque<Packet<?>> packetQueue = new LinkedBlockingDeque<>();
-    private final LinkedBlockingDeque<Packet<?>> movePacketQueue = new LinkedBlockingDeque<>();
+    private final LinkedBlockingDeque<Packet<?>> packetQueue = new LinkedBlockingDeque();
+    private final LinkedBlockingDeque<Packet<?>> movePacketQueue = new LinkedBlockingDeque();
     private volatile boolean isFlushing = false;
     private float instantAttackProgress = 0.0f;
     private boolean isInstantAttacking = false;
     private boolean shouldFlushMotion;
+    private double kbVelocity = 0.0;
+
+    private void log(String message) {
+        if (AntiKB.INSTANCE.log.getValue()) {
+            ChatUtil.print(message);
+        }
+    }
 
     @Override
     public boolean isActive() {
@@ -138,7 +141,7 @@ public class NoXZMode extends AntiKBMode {
                 this.release();
             }
             this.resetSuspension();
-            ChatUtil.print("Flag Detected");
+            log("Flag Detected");
             this.flagCooldown = 2;
         }
         if (this.flagCooldown != 0) {
@@ -162,6 +165,11 @@ public class NoXZMode extends AntiKBMode {
             }
             if (motionPacket.getYa() > 0) {
                 Entity target;
+                this.kbVelocity = Math.sqrt(
+                    (double)motionPacket.getXa() * motionPacket.getXa() +
+                    (double)motionPacket.getYa() * motionPacket.getYa() +
+                    (double)motionPacket.getZa() * motionPacket.getZa()
+                );
                 this.sprintBoostCounter = this.sprintBoostCounter % 100 + 100;
                 if (this.sprintBoostCounter >= 100) {
                     this.shouldJump = true;
@@ -174,13 +182,17 @@ public class NoXZMode extends AntiKBMode {
                     receivePacketEvent.setCancelled(true);
                 } else if (canAttack) {
                     this.pendingTarget = target;
-                    this.attacksRemaining = AntiKB.INSTANCE.attackAmount.getValue().intValue();
+                    if (AntiKB.INSTANCE.autoAttackCount.getValue()) {
+                        this.attacksRemaining = this.getAutoAttackCount();
+                    } else {
+                        this.attacksRemaining = AntiKB.INSTANCE.attackAmount.getValue().intValue();
+                    }
                 } else {
                     this.isSuspending = true;
                     this.suspendTicks = 0;
                     this.knockbackPacket = motionPacket;
                     receivePacketEvent.setCancelled(true);
-                    ChatUtil.print("Alink Wait");
+                    log("Alink Wait");
                 }
             }
         }
@@ -222,6 +234,7 @@ public class NoXZMode extends AntiKBMode {
         this.isSuspending = false;
         this.suspendTicks = 0;
         this.knockbackPacket = null;
+        this.kbVelocity = 0.0;
         this.packetQueue.clear();
         this.movePacketQueue.clear();
         this.isFlushing = false;
@@ -286,7 +299,7 @@ public class NoXZMode extends AntiKBMode {
             return false;
         }
         if (this.getAABBDistance(entity) > AntiKB.INSTANCE.maxReach.getValue().doubleValue()){
-            ChatUtil.print("Out of Reach");
+            log("Out of Reach");
             return false;
         }
         //增加了一个RayTrace
@@ -304,7 +317,7 @@ public class NoXZMode extends AntiKBMode {
             );
             if (!(hitResult instanceof EntityHitResult) ||
                     ((EntityHitResult) hitResult).getEntity() != entity) {
-                ChatUtil.print("Raytrace failed");
+                log("Raytrace failed");
                 return false;
             }
         }
@@ -354,10 +367,14 @@ public class NoXZMode extends AntiKBMode {
                 this.instantAttackProgress += 1.0f - tickRate;
                 this.instantAttackProgress = Math.min(this.instantAttackProgress, 3.0f);
             }
+            if (AntiKB.INSTANCE.dynamicAlinkSearch.getValue() && this.attackTarget == null) {
+                this.searchTargetDuringAlink();
+            }
             boolean onGround = mc.player.onGround();
-            boolean isTimeout = this.suspendTicks >= 12;
+            int alinkTimeoutVal = AntiKB.INSTANCE.alinkTimeout.getValue().intValue();
+            boolean isTimeout = this.suspendTicks >= alinkTimeoutVal;
             if (onGround || isTimeout) {
-                ChatUtil.print(isTimeout ? "Alink Timeout" : "ground");
+                log(isTimeout ? "Alink Timeout" : "ground");
                 if (instantAttackEnabled) {
                     NiloreClient.serverTickRate = 1.0f;
                 }
@@ -367,7 +384,11 @@ public class NoXZMode extends AntiKBMode {
                 if (onGround && canAttack && sprinting) {
                     this.isFlushing = true;
                     this.pendingTarget = target;
-                    this.attacksRemaining = AntiKB.INSTANCE.attackAmount.getValue().intValue();
+                    if (AntiKB.INSTANCE.autoAttackCount.getValue()) {
+                        this.attacksRemaining = this.getAutoAttackCount();
+                    } else {
+                        this.attacksRemaining = AntiKB.INSTANCE.attackAmount.getValue().intValue();
+                    }
                     this.sendMovePackets();
                     this.applyKnockbackPacket();
                     if (instantAttackEnabled && this.instantAttackProgress > 0.0f) {
@@ -415,7 +436,7 @@ public class NoXZMode extends AntiKBMode {
                 this.instantAttackProgress = 0.0f;
                 this.isInstantAttacking = false;
                 NiloreClient.serverTickRate = 1.0f;
-                ChatUtil.print("done");
+                log("done");
             }
         }
         if (this.attacksRemaining > 0 && this.attackTarget != null) {
@@ -442,18 +463,16 @@ public class NoXZMode extends AntiKBMode {
     private void doAttackSequence(TickEvent tickEvent) {
         Entity aimed = this.getHitResultEntity();
 
-        // 增加了 aimed == null 以及 aimed != this.attackTarget 的检验。
-        // 如果视线中没有指向实体，或者指向的实体不是当前要攻击的 target，直接清空目标并取消攻击。
         if (this.attackTarget == null
                 || !this.attackTarget.isAlive()
                 || aimed == null
                 || aimed != this.attackTarget) {
-            ChatUtil.print("aim point mismatch");
+            log("aim point mismatch");
             this.clearTarget();
             return;
         }
         if (this.getAABBDistance(this.attackTarget) > AntiKB.INSTANCE.maxReach.getValue().doubleValue()) {
-            ChatUtil.print("Out of Reach");
+            log("Out of Reach");
             this.clearTarget();
             return;
         }
@@ -471,20 +490,90 @@ public class NoXZMode extends AntiKBMode {
             );
             if (!(hitResult instanceof EntityHitResult) ||
                     ((EntityHitResult) hitResult).getEntity() != this.attackTarget) {
-                ChatUtil.print("Raytrace failed");
+                log("Raytrace failed");
                 this.clearTarget();
                 return;
             }
         }
+
+        boolean isPerTick = "PerTick".equals(AntiKB.INSTANCE.attackMode.getValue());
+
+        if (isPerTick) {
+            // PerTick mode: do one attack per tick
+            this.executeSingleAttack();
+        } else {
+            // OneTime mode: do all attacks now (original behavior)
+            isAttacking = true;
+            while (this.attacksRemaining > 0) {
+                if (this.attackTarget == null || !this.attackTarget.isAlive()) break;
+                isAttacking = true;
+                attackCount = this.attacksRemaining--;
+                this.attackCooldown = 2;
+                this.doAttack(this.attackTarget);
+            }
+            this.clearTarget();
+            log("Attack (" + AntiKB.INSTANCE.attackAmount.getValue().intValue() + ")");
+        }
+    }
+
+    private void executeSingleAttack() {
+        if (this.attackTarget == null || !this.attackTarget.isAlive()) {
+            this.clearTarget();
+            return;
+        }
+        if (this.attacksRemaining != this.getInitialAttackCount() // not first tick
+                && this.getAABBDistance(this.attackTarget) > AntiKB.INSTANCE.maxReach.getValue().doubleValue()) {
+            log("Target too far, skipping attack");
+            this.attacksRemaining--;
+            if (this.attacksRemaining <= 0) {
+                this.clearTarget();
+            }
+            return;
+        }
+
         isAttacking = true;
         attackCount = this.attacksRemaining--;
         this.attackCooldown = 2;
         this.doAttack(this.attackTarget);
+
         if (this.attacksRemaining <= 0) {
             this.clearTarget();
-            if (AntiKB.INSTANCE.instantAttack.getValue()) {
-                ChatUtil.print("Attack (" + AntiKB.INSTANCE.attackAmount.getValue().intValue() + ")");
+        }
+    }
+
+    private int getInitialAttackCount() {
+        return AntiKB.INSTANCE.autoAttackCount.getValue()
+            ? this.getAutoAttackCount()
+            : AntiKB.INSTANCE.attackAmount.getValue().intValue();
+    }
+
+    private int getAutoAttackCount() {
+        int vel = (int) this.kbVelocity;
+        if (vel < 1000) return 0;
+        if (vel < 2000) return 3;
+        if (vel < 10000) return 4;
+        return 5;
+    }
+
+    private void searchTargetDuringAlink() {
+        double range = AntiKB.INSTANCE.alinkSearchRange.getValue().doubleValue();
+        Entity best = null;
+        double bestDist = Double.MAX_VALUE;
+        if (mc.player == null || mc.level == null) return;
+        for (Entity entity : mc.level.entitiesForRendering()) {
+            if (!(entity instanceof LivingEntity) || entity == mc.player || entity.isRemoved()) continue;
+            if (!entity.isAlive() || entity.isSpectator()) continue;
+            double dist = mc.player.distanceToSqr(entity);
+            if (dist > range * range) continue;
+            if (dist < bestDist) {
+                bestDist = dist;
+                best = entity;
             }
+        }
+        if (best != null) {
+            this.attackTarget = best;
+            this.pendingTarget = best;
+            log("Alink found target: " + best.getName().getString());
         }
     }
 
@@ -493,7 +582,7 @@ public class NoXZMode extends AntiKBMode {
             return false;
         }
         if (AntiKB.INSTANCE.sprintStateCheck.getValue() && !mc.player.isSprinting()) {
-            ChatUtil.print("not sprinting");
+            log("not sprinting");
             return false;
         }
         boolean wasSprinting = mc.player.isSprinting();
@@ -507,7 +596,7 @@ public class NoXZMode extends AntiKBMode {
             mc.player.setDeltaMovement(velocity.x * 0.6, velocity.y, velocity.z * 0.6);
         }
         if (!AntiKB.INSTANCE.instantAttack.getValue()) {
-            ChatUtil.print("Attack (" + this.attacksRemaining + ")");
+            log("Attack (" + this.attacksRemaining + ")");
         }
         return true;
     }
@@ -517,7 +606,7 @@ public class NoXZMode extends AntiKBMode {
             return;
         }
         while (!this.movePacketQueue.isEmpty()) {
-            Packet<?> packet = this.movePacketQueue.poll();
+            Packet packet = this.movePacketQueue.poll();
             if (packet == null) continue;
             try {
                 mc.getConnection().send(packet);

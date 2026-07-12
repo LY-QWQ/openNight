@@ -33,7 +33,21 @@
       "Bash(cp *)",
       "Bash(git diff *)",
       "Read(//tmp/**)",
-      "mcp__ide__getDiagnostics"
+      "mcp__ide__getDiagnostics",
+      "Bash(git commit -m 'feat: NoSlow 增强 isLookingAtInteractableBlock 使用 BlockTags + 完整交互方块列表 *)",
+      "Bash(./gradlew compileJava *)",
+      "Skill(run)",
+      "Bash(./gradlew runClient *)",
+      "WebFetch(domain:github.com)",
+      "WebSearch",
+      "Bash(git ls-remote *)",
+      "Bash(git ls-tree *)",
+      "Bash(rm -rf /tmp/xylitol-open-source)",
+      "Bash(git clone *)",
+      "Bash(python *)",
+      "Bash(git reset *)",
+      "Bash(git show *)",
+      "Bash(./gradlew runClient0 *)"
     ]
   }
 }

@@ -3,11 +3,13 @@ package client.nilore.modules.impl.misc;
 import client.nilore.gui.MusicPlayerScreen;
 import client.nilore.modules.Category;
 import client.nilore.modules.Module;
+import client.nilore.modules.impl.misc.music.MusicPlaylist;
 import client.nilore.modules.impl.misc.music.AudioPlayer;
 import client.nilore.settings.impl.NumberSetting;
 
 public class MusicPlayer extends Module {
     public static final AudioPlayer AUDIO_PLAYER = new AudioPlayer();
+    public static final MusicPlaylist PLAYLIST = new MusicPlaylist();
 
     private boolean internalVolumeChange = false;
 

@@ -3,9 +3,6 @@ package client.nilore.gui;
 import com.mojang.blaze3d.platform.NativeImage;
 import java.io.ByteArrayInputStream;
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -23,6 +20,7 @@ import client.nilore.gui.material3.MD3Theme;
 import client.nilore.modules.impl.misc.MusicPlayer;
 import client.nilore.modules.impl.misc.music.AudioPlayer;
 import client.nilore.modules.impl.misc.music.LyricLine;
+import client.nilore.modules.impl.misc.music.MusicHttp;
 import client.nilore.modules.impl.misc.music.NeteaseApi;
 import client.nilore.modules.impl.misc.music.SongInfo;
 import client.nilore.modules.impl.render.LyricsModule;
@@ -60,6 +58,9 @@ public class MusicPlayerScreen extends Screen {
     private static final String ICON_VOLUME  = "";
     private static final String ICON_SEARCH  = "";
     private static final String ICON_QUEUE   = "";
+    private static final String ICON_PLAYLIST = "";
+    private static final String ICON_ADD     = "";
+    private static final String ICON_REMOVE  = "";
     private static final String ICON_INFO    = "";
     private static final String ICON_PERSON  = "";
 
@@ -87,6 +88,8 @@ public class MusicPlayerScreen extends Screen {
 
     private final List<SongInfo> playQueue = new ArrayList<>();
     private int queueIndex = -1;
+    private boolean playlistAutoAdvance;
+    private final AtomicLong playRequestSeq = new AtomicLong();
 
     private float searchScroll;
     private float maxSearchScroll;
@@ -162,6 +165,7 @@ public class MusicPlayerScreen extends Screen {
                 case PLAYER -> renderPlayer(ctx, contentX, contentY, contentW, contentH, mouseX, mouseY);
                 case SEARCH -> renderSearch(ctx, contentX, contentY, contentW, contentH, mouseX, mouseY);
                 case QUEUE -> renderQueue(ctx, contentX, contentY, contentW, contentH, mouseX, mouseY);
+                case PLAYLIST -> renderPlaylist(ctx, contentX, contentY, contentW, contentH, mouseX, mouseY);
                 case ABOUT -> renderAbout(ctx, contentX, contentY, contentW, contentH);
             }
 
@@ -186,6 +190,10 @@ public class MusicPlayerScreen extends Screen {
         navItem(ctx, x + PAD, navY + navH + navGap, navW, navH, Page.SEARCH, ICON_SEARCH, "Search", mx, my);
         navItem(ctx, x + PAD, navY + (navH + navGap) * 2, navW, navH, Page.QUEUE, ICON_QUEUE, "Queue", mx, my);
         navItem(ctx, x + PAD, navY + (navH + navGap) * 3, navW, navH, Page.ABOUT, ICON_INFO, "About", mx, my);
+
+        float playlistY = navY + (navH + navGap) * 4 + 16;
+        GlHelper.drawText("PLAYLIST", x + PAD + 4, playlistY, SMALL_FONT, MD3Theme.TEXT_LOW);
+        navItem(ctx, x + PAD, playlistY + 12, navW, navH, Page.PLAYLIST, ICON_PLAYLIST, "General", mx, my);
     }
 
     private void navItem(DrawContext ctx, float x, float y, float w, float h, Page target, String icon, String label, int mx, int my) {
@@ -342,11 +350,15 @@ public class MusicPlayerScreen extends Screen {
                 if (song.duration > 0) {
                     String dur = song.formatDuration();
                     float durW = GlHelper.getStringWidth(dur, SMALL_FONT);
-                    GlHelper.drawText(dur, innerX + innerW - durW - 4, yy + 14, SMALL_FONT, MD3Theme.TEXT_LOW);
+                    GlHelper.drawText(dur, innerX + innerW - durW - 30, yy + 14, SMALL_FONT, MD3Theme.TEXT_LOW);
                 }
 
+                float addX = innerX + innerW - 28;
+                GlHelper.drawText(ICON_ADD, addX, yy + 14, ICON_FONT, hover ? accent : MD3Theme.TEXT_LOW);
                 int fi = i;
-                this.clickAreas.add(new ClickArea(innerX, yy, innerW, rowH, () -> playSong(searchResults.get(fi))));
+                this.clickAreas.add(new ClickArea(addX - 6, yy + 6, 28, rowH - 12,
+                        () -> MusicPlayer.PLAYLIST.add(searchResults.get(fi))));
+                this.clickAreas.add(new ClickArea(innerX, yy, innerW - 34, rowH, () -> playSong(searchResults.get(fi))));
                 yy += rowH + 3;
             }
         }
@@ -548,13 +560,64 @@ public class MusicPlayerScreen extends Screen {
 
                 int fi = i;
                 this.clickAreas.add(new ClickArea(listX, yy, listW, rowH, () -> {
-                    queueIndex = fi;
-                    playSong(playQueue.get(fi));
+                    playSong(playQueue.get(fi), playQueue, fi);
                 }));
                 yy += rowH + 3;
             }
         }
 
+        ctx.restore();
+    }
+
+    // ───────────── Playlist Page ─────────────
+
+    private void renderPlaylist(DrawContext ctx, float x, float y, float w, float h, int mx, int my) {
+        int accent = MD3Theme.PRIMARY;
+        List<SongInfo> songs = MusicPlayer.PLAYLIST.getSongs();
+        GlHelper.drawText("General Playlist", x + PAD, y + PAD + 4, TITLE_FONT, MD3Theme.TEXT_HIGH);
+        String count = songs.size() + " tracks";
+        float countW = GlHelper.getStringWidth(count, SMALL_FONT);
+        GlHelper.drawText(count, x + w - countW - PAD, y + 28, SMALL_FONT, MD3Theme.TEXT_LOW);
+
+        float listX = x + PAD;
+        float listY = y + 52;
+        float rowH = 48;
+        float listW = w - PAD * 2;
+        float listH = h - 72;
+        maxQueueScroll = Math.max(0, songs.size() * (rowH + 3) - 3 - listH);
+        queueScroll = clamp(queueScroll, 0, maxQueueScroll);
+
+        ctx.save();
+        ctx.clipRect(Rectangle.ofXYWH(listX, listY, listW, listH), true);
+        if (songs.isEmpty()) {
+            GlHelper.drawText("Add songs from Search using the + button.", listX + 14, listY + 14, BODY_FONT, MD3Theme.TEXT_DISABLED);
+        } else {
+            SongInfo playing = MusicPlayer.AUDIO_PLAYER.getCurrentSong();
+            float yy = listY - queueScroll;
+            for (int i = 0; i < songs.size(); i++) {
+                SongInfo song = songs.get(i);
+                if (yy + rowH < listY) { yy += rowH + 3; continue; }
+                if (yy > listY + listH) break;
+                boolean hover = contains(mx, my, listX, yy, listW, rowH);
+                boolean isPlaying = playing != null && playing.id == song.id;
+                if (isPlaying || hover) {
+                    ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(listX, yy, listW, rowH, 10),
+                            new Paint().setColor(MD3Theme.withAlpha(isPlaying ? accent : MD3Theme.SURFACE_HIGH, isPlaying ? 0.12f : 0.4f)));
+                }
+                GlHelper.drawText(isPlaying ? "♪" : String.valueOf(i + 1), listX + 14, yy + 14,
+                        isPlaying ? HEADING_FONT : SMALL_FONT, isPlaying ? accent : MD3Theme.TEXT_LOW);
+                GlHelper.drawText(ellipsize(song.name, 30), listX + 38, yy + 10,
+                        isPlaying ? HEADING_FONT : BODY_FONT, isPlaying ? accent : MD3Theme.TEXT_MED);
+                GlHelper.drawText(ellipsize(song.artist, 34), listX + 38, yy + 30, SMALL_FONT, MD3Theme.TEXT_DISABLED);
+                GlHelper.drawText(ICON_REMOVE, listX + listW - 24, yy + 14, ICON_FONT, hover ? MD3Theme.PRIMARY : MD3Theme.TEXT_LOW);
+                int fi = i;
+                this.clickAreas.add(new ClickArea(listX + listW - 30, yy + 6, 30, rowH - 12,
+                        () -> MusicPlayer.PLAYLIST.remove(fi)));
+                this.clickAreas.add(new ClickArea(listX, yy, listW - 34, rowH,
+                        () -> playSong(songs.get(fi), songs, fi, true)));
+                yy += rowH + 3;
+            }
+        }
         ctx.restore();
     }
 
@@ -733,7 +796,7 @@ public class MusicPlayerScreen extends Screen {
             this.searchScroll = clamp(this.searchScroll - (float) delta * 28, 0, this.maxSearchScroll);
             return true;
         }
-        if (this.page == Page.QUEUE) {
+        if (this.page == Page.QUEUE || this.page == Page.PLAYLIST) {
             this.queueScroll = clamp(this.queueScroll - (float) delta * 28, 0, this.maxQueueScroll);
             return true;
         }
@@ -799,11 +862,21 @@ public class MusicPlayerScreen extends Screen {
     }
 
     private void playSong(SongInfo song) {
-        queueIndex = searchResults.indexOf(song);
-        if (queueIndex >= 0) {
-            playQueue.clear();
-            playQueue.addAll(searchResults);
-        }
+        int index = searchResults.indexOf(song);
+        playSong(song, searchResults, index, false);
+    }
+
+    private void playSong(SongInfo song, List<SongInfo> queue, int index) {
+        playSong(song, queue, index, playlistAutoAdvance);
+    }
+
+    private void playSong(SongInfo song, List<SongInfo> queue, int index, boolean autoAdvance) {
+        long request = playRequestSeq.incrementAndGet();
+        playlistAutoAdvance = autoAdvance;
+        queueIndex = index;
+        List<SongInfo> queueSnapshot = new ArrayList<>(queue);
+        playQueue.clear();
+        playQueue.addAll(queueSnapshot);
 
         NeteaseApi.getLyrics(song.id).thenAccept(lyrics -> {
             lyricsCache.put(song.id, lyrics == null ? List.of() : lyrics);
@@ -814,19 +887,36 @@ public class MusicPlayerScreen extends Screen {
         });
 
         NeteaseApi.getSongUrl(song.id).thenAccept(result -> {
-            if (result == null) return;
+            if (result == null || playRequestSeq.get() != request) return;
             if (song.duration <= 0 && result.size() > 0) song.duration = (result.size() * 1000L) / 40000;
-            waitForWarmupThenPlay(song, result.url());
+            waitForWarmupThenPlay(song, result.url(), request, autoAdvance);
         });
     }
 
-    private void waitForWarmupThenPlay(SongInfo song, String url) {
+    private void waitForWarmupThenPlay(SongInfo song, String url, long request, boolean autoAdvance) {
         LyricsModule mod = NiloreClient.getInstance().getModuleManager().getModule(LyricsModule.class);
-        if (mod == null || mod.isWarmupComplete()) { MusicPlayer.AUDIO_PLAYER.play(song, url); return; }
+        if (mod == null || mod.isWarmupComplete()) {
+            startPlayback(song, url, request, autoAdvance);
+            return;
+        }
         new Thread(() -> {
-            while (!mod.isWarmupComplete()) { try { Thread.sleep(50); } catch (InterruptedException e) { return; } }
-            MusicPlayer.AUDIO_PLAYER.play(song, url);
+            while (!mod.isWarmupComplete()) {
+                try { Thread.sleep(50); } catch (InterruptedException e) { return; }
+                if (playRequestSeq.get() != request) return;
+            }
+            startPlayback(song, url, request, autoAdvance);
         }, "LyricsWarmupWait").start();
+    }
+
+    private void startPlayback(SongInfo song, String url, long request, boolean autoAdvance) {
+        if (playRequestSeq.get() != request) return;
+        MusicPlayer.AUDIO_PLAYER.play(song, url, autoAdvance ? () -> playNextFromPlaylist(request) : null);
+    }
+
+    private void playNextFromPlaylist(long request) {
+        if (playRequestSeq.get() != request || !playlistAutoAdvance || playQueue.isEmpty()) return;
+        int nextIndex = (queueIndex + 1) % playQueue.size();
+        playSong(playQueue.get(nextIndex), playQueue, nextIndex, true);
     }
 
     private void nextSong() {
@@ -875,12 +965,7 @@ public class MusicPlayerScreen extends Screen {
         NeteaseApi.getAlbumPicUrl(song.albumPicUrl).thenAccept(picUrl -> {
             if (picUrl == null || picUrl.isEmpty()) { albumLoading = false; return; }
             try {
-                HttpClient client = HttpClient.newHttpClient();
-                HttpRequest req = HttpRequest.newBuilder()
-                        .uri(URI.create(picUrl))
-                        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0")
-                        .GET().build();
-                byte[] bytes = client.send(req, HttpResponse.BodyHandlers.ofByteArray()).body();
+                byte[] bytes = MusicHttp.getBytes(URI.create(picUrl));
                 if (bytes != null && bytes.length > 100) albumBytes = bytes;
                 else { System.err.println("[MusicPlayerScreen] Album art too small"); albumSongId = -1; }
             } catch (Exception e) { System.err.println("[MusicPlayerScreen] Album download failed: " + e.getMessage()); albumSongId = -1; }
@@ -915,7 +1000,7 @@ public class MusicPlayerScreen extends Screen {
 
     // ───────────── Types ─────────────
 
-    private enum Page { PLAYER, SEARCH, QUEUE, ABOUT }
+    private enum Page { PLAYER, SEARCH, QUEUE, PLAYLIST, ABOUT }
     private enum DragTarget { NONE, PROGRESS, VOLUME }
 
     private record ClickArea(float x, float y, float width, float height, Runnable action) {

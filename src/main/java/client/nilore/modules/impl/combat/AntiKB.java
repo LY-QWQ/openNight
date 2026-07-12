@@ -25,7 +25,7 @@ import client.nilore.utils.rotation.Rotation;
 import client.nilore.event.EventTarget;
 
 public class AntiKB
-        extends Module {
+extends Module {
     public static AntiKB INSTANCE;
     public static Rotation rotation;
     public static ModeSetting mode;
@@ -36,10 +36,17 @@ public class AntiKB
     public final BooleanSetting followDirection = new BooleanSetting("Follow Direction", false, () -> mode.is("Jump Reset"));
     public final NumberSetting rotateTicks = new NumberSetting("Rotate Ticks", 12, 3, 20, 1, () -> mode.is("Jump Reset") && (this.rotate.getValue() != false || this.followDirection.getValue() != false));
     public final NumberSetting attackAmount = new NumberSetting("Attack amount", 5.0, 1.0, 20.0, 1, () -> mode.is("NoXZ"));
-    public final NumberSetting maxReach = new NumberSetting("Max Reach", 3.0, 1.0, 5.0, 0.1, () -> mode.is("NoXZ"));
+    public final NumberSetting maxReach = new NumberSetting("Max Reach", 3.5, 1.0, 5.0, 0.1, () -> mode.is("NoXZ"));
     public final BooleanSetting instantAttack = new BooleanSetting("Instant Attack", false, () -> mode.is("NoXZ"));
     public final BooleanSetting sprintStateCheck = new BooleanSetting("Sprint state check", true, () -> mode.is("NoXZ"));
     public final BooleanSetting raytraceCheck = new BooleanSetting("Raytrace Check", true, () -> mode.is("NoXZ"));
+    public final BooleanSetting log = new BooleanSetting("Log", false, () -> mode.is("NoXZ"));
+    public final NumberSetting alinkTimeout = new NumberSetting("Alink Timeout", 20.0, 5.0, 60.0, 1, () -> mode.is("NoXZ"));
+    public final ModeSetting attackMode = new ModeSetting("Attack Mode", "PerTick", "OneTime").withDefault("OneTime").withVisibility(() -> mode.is("NoXZ"));
+    public final BooleanSetting autoAttackCount = new BooleanSetting("Auto Attack Count", false, () -> mode.is("NoXZ"));
+    public final BooleanSetting dynamicAlinkSearch = new BooleanSetting("Dynamic Alink Search", true, () -> mode.is("NoXZ"));
+    public final NumberSetting alinkSearchRange = new NumberSetting("Alink Search Range", 6.0, 1.0, 20.0, 0.5, () -> mode.is("NoXZ"));
+
     public AntiKB() {
         super("AntiKB", Category.COMBAT);
         INSTANCE = this;

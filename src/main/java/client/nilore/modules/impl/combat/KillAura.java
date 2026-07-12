@@ -68,7 +68,7 @@ public class KillAura extends Module {
     public static Entity aimingTarget;
     public static List<Entity> targetList = new ArrayList<>();
 
-    // Fields kept in sync with the obfuscated jar: 12 BooleanSetting / 7
+    // Fields kept in sync with the obfuscated jar: 13 BooleanSetting / 7
     // NumberSetting / 3 ModeSetting, in declaration order.
     public final BooleanSetting attackPlayer    = new BooleanSetting("Attack Player", true);
     public final BooleanSetting attackInvisible = new BooleanSetting("Attack Invisible", true);
@@ -79,6 +79,7 @@ public class KillAura extends Module {
     public final BooleanSetting preferBaby      = new BooleanSetting("Prefer Baby", false);
     public final BooleanSetting morePart        = new BooleanSetting("More Particles", false);
     public final BooleanSetting keepSprint      = new BooleanSetting("Keep Sprint", true);
+    public final BooleanSetting fix             = new BooleanSetting("Fix", false);
     public final BooleanSetting overrideRaycast = new BooleanSetting("Override Raycast", true);
     public final BooleanSetting ignoreSkipTicks = new BooleanSetting("Ignore skip ticks", false);
     public final BooleanSetting fakeAutoBlock   = new BooleanSetting("Fake AutoBlock", true);
@@ -105,7 +106,6 @@ public class KillAura extends Module {
     public final NumberSetting rotationDrift = new NumberSetting("Drift", 0.1, 0, 5, 0.1);
     public final NumberSetting rotationJitter = new NumberSetting("Jitter", 0.02, 0, 1, 0.01);
 
-    private static final boolean ATTACK_FIX = true;
     private RotationUtil.BestHitInfo currentBestHit;
     private RotationUtil.BestHitInfo prevBestHit;
     private int attackTimes;
@@ -424,7 +424,13 @@ public class KillAura extends Module {
                 && (this.ignoreSkipTicks.getValue() || ClientBase.delayPackets.isEmpty()
                 || (Critical.INSTANCE != null && Critical.INSTANCE.isEnabled()))) {
             while (this.attacks >= 1.0f) {
-                this.doAttack();
+                if (this.fix.getValue()) {
+                    if (!this.doAttack()) {
+                        break;
+                    }
+                } else {
+                    this.doAttack();
+                }
                 this.attacks -= 1.0f;
             }
         } else {
@@ -436,21 +442,6 @@ public class KillAura extends Module {
         if (this.isWebPlacing()) {
             this.attacks = 0.0f;
             return false;
-        }
-        if (ATTACK_FIX) {
-            this.updateTargets();
-            Entity freshTarget = this.getTarget();
-            if (freshTarget == null || !targetList.contains(freshTarget) || !this.isValidAttack(freshTarget)) {
-                return false;
-            }
-            RotationUtil.BestHitInfo freshBestHit = RotationUtil.getBestHit(freshTarget);
-            if (freshBestHit == null || freshBestHit.rotation() == null) {
-                return false;
-            }
-            target = freshTarget;
-            aimingTarget = freshTarget;
-            this.currentBestHit = freshBestHit;
-            this.rotation = freshBestHit.rotation();
         }
         if (targetList.isEmpty()) return false;
         if (this.rotation == null) return false;
@@ -605,7 +596,6 @@ public class KillAura extends Module {
         if (mc.player == null || mc.gameMode == null) return false;
         if (this.isWebPlacing()) return false;
 
-        ++this.attackTimes;
         float currentYaw = mc.player.getYRot();
         float currentPitch = mc.player.getXRot();
         if (RotationHandler.targetRotation != null) {
@@ -613,20 +603,20 @@ public class KillAura extends Module {
             mc.player.setXRot(RotationHandler.targetRotation.getPitch());
         }
 
-        int attackKey = mc.options.keyAttack.getKey().getValue();
-        if (this.keepSprint.getValue()) {
-            if (this.sprintTickCounter % 2 == 0) {
-                mc.gameMode.attack(mc.player, entity);
-                ForgeHooksClient.onMouseButtonPre(attackKey, 1, 0);
-                mc.player.swing(InteractionHand.MAIN_HAND);
-                ForgeHooksClient.onMouseButtonPost(attackKey, 1, 0);
-            }
-        } else {
-            mc.gameMode.attack(mc.player, entity);
-            ForgeHooksClient.onMouseButtonPre(attackKey, 1, 0);
-            mc.player.swing(InteractionHand.MAIN_HAND);
-            ForgeHooksClient.onMouseButtonPost(attackKey, 1, 0);
+        boolean canAttackWithSprint = !this.keepSprint.getValue()
+                || this.sprintTickCounter % 2 == 0;
+        if (!canAttackWithSprint) {
+            mc.player.setYRot(currentYaw);
+            mc.player.setXRot(currentPitch);
+            return false;
         }
+
+        ++this.attackTimes;
+        int attackKey = mc.options.keyAttack.getKey().getValue();
+        mc.gameMode.attack(mc.player, entity);
+        ForgeHooksClient.onMouseButtonPre(attackKey, 1, 0);
+        mc.player.swing(InteractionHand.MAIN_HAND);
+        ForgeHooksClient.onMouseButtonPost(attackKey, 1, 0);
 
         if (this.morePart.getValue()) {
             mc.player.magicCrit(entity);

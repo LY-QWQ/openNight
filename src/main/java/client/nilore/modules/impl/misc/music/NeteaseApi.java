@@ -7,10 +7,6 @@ import com.google.gson.JsonParser;
 import com.google.gson.stream.JsonReader;
 import java.io.StringReader;
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -21,10 +17,6 @@ import java.util.regex.Pattern;
 
 public class NeteaseApi {
     private static final String BASE = "https://music-api.gdstudio.xyz/api.php";
-    private static final String UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0";
-    private static final HttpClient CLIENT = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(10))
-            .build();
     private static final Pattern LRC_PATTERN = Pattern.compile("\\[(\\d{2}):(\\d{2})\\.(\\d{2,3})](.*)");
 
     public static CompletableFuture<List<SongInfo>> search(String keywords, int limit) {
@@ -111,23 +103,14 @@ public class NeteaseApi {
 
     private static CompletableFuture<JsonElement> get(String params) {
         String url = BASE + "?" + params;
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(url))
-                .timeout(Duration.ofSeconds(15))
-                .header("User-Agent", UA)
-                .GET()
-                .build();
-        return CLIENT.sendAsync(request, HttpResponse.BodyHandlers.ofString())
-                .thenApply(resp -> {
-                    System.out.println("[MusicPlayer] API " + params.split("&")[0] + " status=" + resp.statusCode());
-                    String body = resp.body();
+        return MusicHttp.getStringAsync(URI.create(url))
+                .thenApply(body -> {
                     JsonReader reader = new JsonReader(new StringReader(body));
                     reader.setLenient(true);
                     return JsonParser.parseReader(reader);
                 })
                 .exceptionally(e -> {
-                    System.err.println("[MusicPlayer] API error: " + e.getMessage());
-                    e.printStackTrace();
+                    System.err.println("[MusicPlayer] API " + params.split("&")[0] + " failed: " + e.getMessage());
                     return null;
                 });
     }
