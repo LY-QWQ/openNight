@@ -82,7 +82,6 @@ public class MusicPlayerScreen extends Screen {
     private boolean searchFocused;
     private boolean searchDirty;
     private boolean searchSelectAll;
-    private long lastSearchEditMs;
     private volatile List<SongInfo> searchResults = List.of();
     private volatile boolean searching;
 
@@ -120,10 +119,6 @@ public class MusicPlayerScreen extends Screen {
         // Stop playback when not in a world (title screen)
         if (Minecraft.getInstance().level == null) {
             MusicPlayer.AUDIO_PLAYER.stop();
-        }
-        if (this.searchDirty && this.searchFocused
-                && System.currentTimeMillis() - this.lastSearchEditMs >= 350) {
-            this.startSearch();
         }
     }
 
@@ -809,7 +804,6 @@ public class MusicPlayerScreen extends Screen {
         this.searchText = this.searchSelectAll ? String.valueOf(codePoint) : this.searchText + codePoint;
         this.searchSelectAll = false;
         this.searchDirty = true;
-        this.lastSearchEditMs = System.currentTimeMillis();
         return true;
     }
 
@@ -822,10 +816,9 @@ public class MusicPlayerScreen extends Screen {
                     if (this.searchSelectAll) { this.searchText = ""; this.searchSelectAll = false; }
                     else if (!this.searchText.isEmpty()) this.searchText = this.searchText.substring(0, this.searchText.length() - 1);
                     this.searchDirty = true;
-                    this.lastSearchEditMs = System.currentTimeMillis();
                     return true;
                 }
-                case GLFW.GLFW_KEY_DELETE -> { this.searchText = ""; this.searchSelectAll = false; this.searchDirty = true; this.lastSearchEditMs = System.currentTimeMillis(); return true; }
+                case GLFW.GLFW_KEY_DELETE -> { this.searchText = ""; this.searchSelectAll = false; this.searchDirty = true; return true; }
                 case GLFW.GLFW_KEY_ESCAPE -> { this.searchFocused = false; return true; }
             }
             if (Screen.isPaste(keyCode)) {
@@ -833,7 +826,6 @@ public class MusicPlayerScreen extends Screen {
                 this.searchText = this.searchSelectAll ? paste : this.searchText + paste;
                 this.searchSelectAll = false;
                 this.searchDirty = true;
-                this.lastSearchEditMs = System.currentTimeMillis();
                 return true;
             }
             if (Screen.hasControlDown() && keyCode == GLFW.GLFW_KEY_A) {
