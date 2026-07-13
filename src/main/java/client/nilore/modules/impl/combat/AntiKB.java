@@ -21,11 +21,14 @@ import client.nilore.modules.impl.movement.HighJump;
 import client.nilore.settings.impl.BooleanSetting;
 import client.nilore.settings.impl.ModeSetting;
 import client.nilore.settings.impl.NumberSetting;
+import client.nilore.utils.animation.Timer;
 import client.nilore.utils.rotation.Rotation;
 import client.nilore.event.EventTarget;
+import net.minecraft.network.protocol.game.ClientboundPingPacket;
+import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
 
 public class AntiKB
-extends Module {
+        extends Module {
     public static AntiKB INSTANCE;
     public static Rotation rotation;
     public static ModeSetting mode;
@@ -35,18 +38,15 @@ extends Module {
     public final BooleanSetting movementOverride = new BooleanSetting("Movement Override", false, () -> mode.is("Mix"));
     public final BooleanSetting followDirection = new BooleanSetting("Follow Direction", false, () -> mode.is("Jump Reset"));
     public final NumberSetting rotateTicks = new NumberSetting("Rotate Ticks", 12, 3, 20, 1, () -> mode.is("Jump Reset") && (this.rotate.getValue() != false || this.followDirection.getValue() != false));
-    public final NumberSetting attackAmount = new NumberSetting("Attack amount", 5.0, 1.0, 20.0, 1, () -> mode.is("NoXZ"));
-    public final NumberSetting maxReach = new NumberSetting("Max Reach", 3.5, 1.0, 5.0, 0.1, () -> mode.is("NoXZ"));
+    public final BooleanSetting autoAttackCount = new BooleanSetting("Auto Attack Count", true, () -> mode.is("NoXZ"));
+    public final NumberSetting attackAmount = new NumberSetting("Attack amount", 5.0, 1.0, 20.0, 1, () -> mode.is("NoXZ") && !this.autoAttackCount.getValue());
     public final BooleanSetting instantAttack = new BooleanSetting("Instant Attack", false, () -> mode.is("NoXZ"));
     public final BooleanSetting sprintStateCheck = new BooleanSetting("Sprint state check", true, () -> mode.is("NoXZ"));
-    public final BooleanSetting raytraceCheck = new BooleanSetting("Raytrace Check", true, () -> mode.is("NoXZ"));
-    public final BooleanSetting log = new BooleanSetting("Log", false, () -> mode.is("NoXZ"));
-    public final NumberSetting alinkTimeout = new NumberSetting("Alink Timeout", 20.0, 5.0, 60.0, 1, () -> mode.is("NoXZ"));
-    public final ModeSetting attackMode = new ModeSetting("Attack Mode", "PerTick", "OneTime").withDefault("OneTime").withVisibility(() -> mode.is("NoXZ"));
-    public final BooleanSetting autoAttackCount = new BooleanSetting("Auto Attack Count", false, () -> mode.is("NoXZ"));
-    public final BooleanSetting dynamicAlinkSearch = new BooleanSetting("Dynamic Alink Search", true, () -> mode.is("NoXZ"));
-    public final NumberSetting alinkSearchRange = new NumberSetting("Alink Search Range", 6.0, 1.0, 20.0, 0.5, () -> mode.is("NoXZ"));
-
+    public final BooleanSetting debugLog = new BooleanSetting("Debug Log", false);
+    public final BooleanSetting grimCancel = new BooleanSetting("Full When Water", false);
+    public final NumberSetting grimCancelBuffer = new NumberSetting("Grim Cancel Buffer", 1.0, 0.0, 5.0, 1);
+    private int grimPingCancelCount = 0;
+    private final Timer grimSyncTimer = new Timer();
     public AntiKB() {
         super("AntiKB", Category.COMBAT);
         INSTANCE = this;
@@ -55,6 +55,8 @@ extends Module {
 
     @Override
     public void onEnable() {
+        this.grimPingCancelCount = 0;
+        this.grimSyncTimer.reset();
         Optional<AntiKBMode> optional;
         rotation = null;
         if (!Arrays.stream((Object[])mode.getModes()).toList().contains(mode.getValue())) {
@@ -68,6 +70,7 @@ extends Module {
 
     @Override
     public void onDisable() {
+        this.grimPingCancelCount = 0;
         rotation = null;
         Optional<AntiKBMode> optional = AntiKBMode.findMode(mode.getValue());
         if (optional.isEmpty()) {
@@ -78,6 +81,10 @@ extends Module {
 
     @EventTarget
     public void onGameTick(GameTickEvent gameTickEvent) {
+        if (this.grimCancel.getValue() && mc.player != null && !FireballBlink.INSTANCE.isEnabled() && !HighJump.INSTANCE.isEnabled()
+                && (mc.player.isInWater() || mc.player.isUnderWater()) && this.grimPingCancelCount > 0 && this.grimSyncTimer.hasPassed(2000L)) {
+            this.grimPingCancelCount = 0;
+        }
         Optional<AntiKBMode> optional = AntiKBMode.findMode(mode.getValue());
         if (FireballBlink.INSTANCE.isEnabled() || HighJump.INSTANCE.isEnabled() || optional.isEmpty()) {
             return;
@@ -132,6 +139,18 @@ extends Module {
 
     @EventTarget(value=1)
     public void onReceivePacket(ReceivePacketEvent receivePacketEvent) {
+        if (this.grimCancel.getValue() && mc.player != null && !FireballBlink.INSTANCE.isEnabled() && !HighJump.INSTANCE.isEnabled()
+                && (mc.player.isInWater() || mc.player.isUnderWater())) {
+            var packet = receivePacketEvent.getPacket();
+            if (packet instanceof ClientboundSetEntityMotionPacket motion && motion.getId() == mc.player.getId()) {
+                receivePacketEvent.setCancelled(true);
+                this.grimPingCancelCount = 1 + this.grimCancelBuffer.getValue().intValue();
+            } else if (packet instanceof ClientboundPingPacket && this.grimPingCancelCount > 0) {
+                receivePacketEvent.setCancelled(true);
+                this.grimPingCancelCount--;
+                return;
+            }
+        }
         Optional<AntiKBMode> optional = AntiKBMode.findMode(mode.getValue());
         if (FireballBlink.INSTANCE.isEnabled() || HighJump.INSTANCE.isEnabled() || optional.isEmpty()) {
             return;

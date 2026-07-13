@@ -4,6 +4,7 @@ import client.nilore.NiloreClient;
 import client.nilore.event.impl.GlRenderEvent;
 import client.nilore.event.impl.Render2DEvent;
 import client.nilore.hud.DynamicIsland;
+import client.nilore.hud.LogoWatermark;
 import client.nilore.hud.NeverloseWatermark;
 import client.nilore.modules.Category;
 import client.nilore.modules.Module;
@@ -15,8 +16,9 @@ import client.nilore.settings.impl.ModeSetting;
 import client.nilore.event.EventTarget;
 
 public class Watermark extends Module {
-    final ModeSetting styleSetting = new ModeSetting("Style", "Neverlose", "DynamicIsland", "Simple").withDefault("DynamicIsland");
+    final ModeSetting styleSetting = new ModeSetting("Style", "Neverlose", "DynamicIsland", "Simple", "Logo").withDefault("DynamicIsland");
     private final DynamicIsland dynamicIsland = new DynamicIsland();
+    private final LogoWatermark logoWatermark = new LogoWatermark();
     private final NeverloseWatermark neverloseWatermark = new NeverloseWatermark();
 
     private static final FontRenderer titleFont = Fonts.getRenderer("quicksand.ttf", 36.0f);
@@ -53,6 +55,9 @@ public class Watermark extends Module {
                 break;
             case "Simple":
                 this.renderSimple(glRenderEvent.drawContext());
+                break;
+            case "Logo":
+                this.logoWatermark.onGlRender(glRenderEvent);
                 break;
         }
     }

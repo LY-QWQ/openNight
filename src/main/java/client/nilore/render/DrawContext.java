@@ -289,6 +289,18 @@ public class DrawContext {
         customFont.drawString(this.poseStack, text, x, baselineY, paint.getColor());
     }
 
+    public void drawStringGradient(String text, float x, float y, FontRenderer fontRenderer, int topColor, int bottomColor) {
+        if (text == null || text.isEmpty()) {
+            return;
+        }
+        CustomFont customFont = fontRenderer.getFont();
+        if (customFont == null) {
+            return;
+        }
+        float baselineY = y + fontRenderer.getMetrics().ascent();
+        customFont.drawStringGradient(this.poseStack, text, x, baselineY, topColor, bottomColor);
+    }
+
     public void drawArc(float x1, float y1, float x2, float y2, float startAngle, float sweepAngle, boolean unused, Paint paint) {
         this.drawArc(x1, y1, x2, y2, startAngle, sweepAngle, unused, 32, paint);
     }

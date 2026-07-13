@@ -289,6 +289,67 @@ implements Closeable {
         RenderSystem.disableBlend();
     }
 
+    public void drawStringGradient(PoseStack poseStack, String text, float x, float y, int topColor, int bottomColor) {
+        if (this.preloadFuture != null && !this.preloadFuture.isDone()) {
+            try {
+                this.preloadFuture.get();
+            } catch (ExecutionException | InterruptedException ignored) {
+            }
+        }
+        this.checkGuiScaleChanged();
+        float topR = (topColor >> 16 & 0xFF) / 255.0f;
+        float topG = (topColor >> 8 & 0xFF) / 255.0f;
+        float topB = (topColor & 0xFF) / 255.0f;
+        float topA = (topColor >>> 24 & 0xFF) / 255.0f;
+        float bottomR = (bottomColor >> 16 & 0xFF) / 255.0f;
+        float bottomG = (bottomColor >> 8 & 0xFF) / 255.0f;
+        float bottomB = (bottomColor & 0xFF) / 255.0f;
+        float bottomA = (bottomColor >>> 24 & 0xFF) / 255.0f;
+        poseStack.pushPose();
+        poseStack.translate(MathUtil.round(x, 1), MathUtil.round(--y, 1), 0.0);
+        poseStack.scale(1.0f / this.scale, 1.0f / this.scale, 1.0f);
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        RenderSystem.disableCull();
+        RenderSystem.setShader(GameRenderer::getPositionTexColorShader);
+        Matrix4f pose = poseStack.last().pose();
+        float penX = 0.0f;
+        synchronized (this.glyphPageMap) {
+            for (char ch : text.toCharArray()) {
+                Glyph glyph = this.getOrLoadGlyph(ch);
+                if (glyph == null) continue;
+                if (glyph.value() != ' ') {
+                    this.glyphPageMap.computeIfAbsent(glyph.owner().textureLocation, key -> new ObjectArrayList<>())
+                            .add(new GlyphEntry(penX, 0.0f, 0.0f, 0.0f, 0.0f, glyph));
+                }
+                penX += glyph.width() + this.letterSpacing;
+            }
+            for (ResourceLocation textureLocation : this.glyphPageMap.keySet()) {
+                RenderSystem.setShaderTexture(0, textureLocation);
+                BufferBuilder bufferBuilder = Tesselator.getInstance().getBuilder();
+                bufferBuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
+                for (GlyphEntry entry : this.glyphPageMap.get(textureLocation)) {
+                    Glyph glyph = entry.toDraw;
+                    GlyphPage page = glyph.owner();
+                    float u1 = (float) glyph.u() / page.imageWidth;
+                    float v1 = (float) glyph.v() / page.imageHeight;
+                    float u2 = (float) (glyph.u() + glyph.width()) / page.imageWidth;
+                    float v2 = (float) (glyph.v() + glyph.height()) / page.imageHeight;
+                    float right = entry.atX + glyph.width();
+                    float bottom = entry.atY + glyph.height();
+                    bufferBuilder.vertex(pose, entry.atX, bottom, 0.0f).uv(u1, v2).color(bottomR, bottomG, bottomB, bottomA).endVertex();
+                    bufferBuilder.vertex(pose, right, bottom, 0.0f).uv(u2, v2).color(bottomR, bottomG, bottomB, bottomA).endVertex();
+                    bufferBuilder.vertex(pose, right, entry.atY, 0.0f).uv(u2, v1).color(topR, topG, topB, topA).endVertex();
+                    bufferBuilder.vertex(pose, entry.atX, entry.atY, 0.0f).uv(u1, v1).color(topR, topG, topB, topA).endVertex();
+                }
+                Tesselator.getInstance().end();
+            }
+            this.glyphPageMap.clear();
+        }
+        poseStack.popPose();
+        RenderSystem.disableBlend();
+    }
+
     public void drawStringCentered(PoseStack poseStack, String text, double x, double y, int color) {
         float r = (float)(color >> 16 & 0xFF) / 255.0f;
         float g = (float)(color >> 8 & 0xFF) / 255.0f;

@@ -68,6 +68,7 @@ public class Scaffold extends Module {
     public final NumberSetting turnSpeed = new NumberSetting("Turn Speed", 75, 0, 360, 5, this.syncRotSpeed::getValue);
     public final NumberSetting returnSpeed = new NumberSetting("Return Speed", 120, 0, 360, 5, this.syncRotSpeed::getValue);
     public final NumberSetting predictTicks = new NumberSetting("Predict Ticks", 2, 1, 3, 1);
+    public final ModeSetting switchMode = new ModeSetting("Switch Mode", "Normal", "Hotbar", "Full").withDefault("Hotbar");
     public final BooleanSetting print_log = new BooleanSetting("Log",false);
 
     public Rotation rots = new Rotation();
@@ -76,10 +77,10 @@ public class Scaffold extends Module {
     public int velocityDelay = 0;
 
     private int oldSlot;
-    private int playerSlot;       // 玩家最后手动选的槽位
-    private int visualSlot = -1;  // 用于onUpdateHeldItem的渲染槽位
-    private boolean slotSwitchedThisTick;
-    private int scaffoldSetSlot = -1;  // Scaffold本次选的槽位
+    private int altSlot = -1;
+    private boolean slotActive;
+    private int slotActiveTick;
+    private int slotTicks;
     private PlacementTarget currentPlacement;
     private int airTicks = 0;
     private int rotationDelay = 0;
@@ -107,9 +108,10 @@ public class Scaffold extends Module {
     public void onEnable() {
         if (mc.player != null) {
             this.oldSlot = mc.player.getInventory().selected;
-            this.playerSlot = this.oldSlot;
-            this.visualSlot = this.oldSlot;
-            this.scaffoldSetSlot = -1;
+            this.altSlot = this.oldSlot;
+            this.slotActive = false;
+            this.slotActiveTick = 0;
+            this.slotTicks = 0;
             this.rots.setYawPitch(mc.player.getYRot() - 180.0f, mc.player.getXRot());
             this.lastRots.setYawPitch(mc.player.yRotO - 180.0f, mc.player.xRotO);
             this.currentPlacement = null;
@@ -137,7 +139,10 @@ public class Scaffold extends Module {
             mc.options.keyJump.setDown(jumpDown);
             mc.options.keyShift.setDown(shiftDown);
             mc.options.keyUse.setDown(false);
-            mc.player.getInventory().selected = this.visualSlot >= 0 ? this.visualSlot : this.oldSlot;
+            if (this.slotActive) {
+                mc.player.getInventory().selected = this.altSlot;
+                this.slotActive = false;
+            }
             this.canBuildNow = true;
             this.lastC05Position = null;
             ClientBase.delayPackets.clear();
@@ -166,9 +171,10 @@ public class Scaffold extends Module {
 
     @EventTarget
     public void onUpdateHeldItem(UpdateHeldItemEvent event) {
-        if (this.renderItemSpoof.getValue() && event.getHand() == InteractionHand.MAIN_HAND && mc.player != null) {
-            if (this.visualSlot >= 0) {
-                event.setItemStack(mc.player.getInventory().getItem(this.visualSlot));
+        if (event.getHand() == InteractionHand.MAIN_HAND && mc.player != null) {
+            boolean silenceActive = this.slotActive && !this.switchMode.is("Normal");
+            if ((silenceActive || this.renderItemSpoof.getValue()) && this.altSlot >= 0) {
+                event.setItemStack(mc.player.getInventory().getItem(this.altSlot));
             }
         }
     }
@@ -188,29 +194,18 @@ public class Scaffold extends Module {
             } else {
                 this.airTicks++;
             }
-            // Scaffold自动切格了，需要决定是否revert
-            if (this.slotSwitchedThisTick) {
-                int currentSelected = mc.player.getInventory().selected;
-                // 如果玩家在onTick之后手动切了格(handleKeybinds改了selected)，则更新playerSlot不revert
-                if (currentSelected != this.scaffoldSetSlot) {
-                    this.playerSlot = currentSelected;
-                } else {
-                    // 玩家没操作，退回去
-                    mc.player.getInventory().selected = this.playerSlot;
-                }
-            }
-            this.slotSwitchedThisTick = false;
         }
     }
 
     @EventTarget(value = 1)
     public void onTick(TickEvent event) {
         if (mc.player == null) return;
-        // 处理delay packet遗留的slot切换（onMotion没跑的情况）
-        if (this.slotSwitchedThisTick) {
-            mc.player.getInventory().selected = this.playerSlot;
-            this.slotSwitchedThisTick = false;
+        if (this.slotActive && this.slotActiveTick != this.slotTicks) {
+            mc.player.getInventory().selected = this.altSlot;
+            this.slotActive = false;
         }
+        this.slotTicks++;
+
         this.packetBatches.add(new CopyOnWriteArrayList<>());
         if (this.velocityDelay > 0) this.velocityDelay--;
         if (mc.player.onGround() && this.velocityDelay <= 30) this.velocityDelay = 0;
@@ -223,12 +218,16 @@ public class Scaffold extends Module {
                 break;
             }
         }
-        // 检测玩家手动切格
-        if (mc.player.getInventory().selected != this.playerSlot) {
-            this.playerSlot = mc.player.getInventory().selected;
+
+        // Switch Mode logic
+        if (placeableSlot != -1 && placeableSlot != mc.player.getInventory().selected) {
+            if (!this.slotActive) {
+                this.altSlot = mc.player.getInventory().selected;
+            }
+            mc.player.getInventory().selected = placeableSlot;
+            this.slotActive = true;
+            this.slotActiveTick = this.slotTicks;
         }
-        this.visualSlot = this.playerSlot;
-        // 注意：切格移到doSnap()里，只在真正放方块时才切
 
         boolean jumpHeld = InputConstants.isKeyDown(mc.getWindow().getWindow(), mc.options.keyJump.getKey().getValue());
         if (this.targetYLevel == -1
@@ -728,25 +727,7 @@ public class Scaffold extends Module {
         if (facing == Direction.UP && !mc.player.onGround() && MovementUtil.isMoving()
                 && !mc.options.keyJump.isDown() && !this.mode.is("Normal")) return;
 
-        // 切到方块槽位
-        int prevSlot = mc.player.getInventory().selected;
-        int placeableSlot = -1;
-        for (int i = 0; i < 9; i++) {
-            ItemStack stack = mc.player.getInventory().getItem(i);
-            if (stack.getItem() instanceof BlockItem && BlockUtil.isPlaceable(stack)) {
-                placeableSlot = i;
-                break;
-            }
-        }
-        if (placeableSlot == -1) return;
-        if (placeableSlot != prevSlot) {
-            mc.player.getInventory().selected = placeableSlot;
-        }
-
-        if (!shouldBuild()) {
-            if (prevSlot != placeableSlot) mc.player.getInventory().selected = prevSlot;
-            return;
-        }
+        if (!BlockUtil.isPlaceable(mc.player.getMainHandItem())) return;
 
         // 计算朝向放置面的旋转
         Vec3 faceCenter = getFaceCenter(this.currentPlacement.position, facing);
@@ -754,7 +735,6 @@ public class Scaffold extends Module {
 
         // 用即将发包的旋转做射线校验，打不中就不发
         if (!RayTraceUtil.canRayTrace(targetRot, facing, this.currentPlacement.position, true)) {
-            if (prevSlot != placeableSlot) mc.player.getInventory().selected = prevSlot;
             return;
         }
 
@@ -789,33 +769,13 @@ public class Scaffold extends Module {
                 origPitch + rotationJitter(),
                 mc.player.onGround()
         ));
-
-        // 恢复槽位
-        if (prevSlot != placeableSlot) {
-            mc.player.getInventory().selected = prevSlot;
-        }
     }
 
     private void doSnap() {
         if (this.currentPlacement == null || mc.player == null || mc.gameMode == null) return;
-        // 放置前先保存玩家当前选的槽位（handleKeybinds已经处理过了）
-        this.playerSlot = mc.player.getInventory().selected;
-        this.visualSlot = this.playerSlot;
-        // 切换到方块槽位（只在这时切，避免onTick无脑切格锁定hotbar）
-        int placeableSlot = -1;
-        for (int i = 0; i < 9; i++) {
-            ItemStack stack = mc.player.getInventory().getItem(i);
-            if (stack.getItem() instanceof BlockItem && BlockUtil.isPlaceable(stack)) {
-                placeableSlot = i;
-                break;
-            }
-        }
-        if (placeableSlot != -1 && mc.player.getInventory().selected != placeableSlot) {
-            mc.player.getInventory().selected = placeableSlot;
-            this.scaffoldSetSlot = placeableSlot;
-            this.slotSwitchedThisTick = true;
-        }
+
         if (!BlockUtil.isPlaceable(mc.player.getMainHandItem())) return;
+
         // SkipTicks时每次放置前都发送对准目标方块面的C05. Fix By StarSky
         if (!this.canBuildNow && this.clutch.getValue() && !this.currentPlacement.position.equals(this.lastC05Position)) {
             this.lastC05Position = this.currentPlacement.position;
@@ -828,6 +788,7 @@ public class Scaffold extends Module {
             }
             PacketUtil.sendQueued(new ServerboundMovePlayerPacket.Rot(yaw, c05Rotation.getPitch(), mc.player.onGround()));
         }
+
         Direction facing = this.currentPlacement.facing;
         boolean jumpHeld = InputConstants.isKeyDown(mc.getWindow().getWindow(), mc.options.keyJump.getKey().getValue());
         if (facing == null) return;
@@ -838,11 +799,8 @@ public class Scaffold extends Module {
         if (!this.isAimingAtPlacementFace()) return;
         BlockHitResult hit = new BlockHitResult(getHitVec(this.currentPlacement.position, facing), facing, this.currentPlacement.position, false);
         InteractionResult result = mc.gameMode.useItemOn(mc.player, InteractionHand.MAIN_HAND, hit);
-        if (result == InteractionResult.SUCCESS) {
-            if (this.swingMode.is("Server")) {
-            } else {
-                mc.player.swing(InteractionHand.MAIN_HAND);
-            }
+        if (result == InteractionResult.SUCCESS && !this.swingMode.is("Server")) {
+            mc.player.swing(InteractionHand.MAIN_HAND);
         }
     }
 

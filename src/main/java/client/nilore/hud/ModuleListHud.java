@@ -529,6 +529,10 @@ public class ModuleListHud extends HudElement {
         GlHelper.drawText(text, textX, textY, font, finalColor);
     }
 
+    public int getThemeColor(int positionIndex, float positionProgress, int maxPositionIndex) {
+        return this.colorForPosition(positionIndex, positionProgress, maxPositionIndex);
+    }
+
     private int colorForPosition(int rowIndex, float charProgress, int maxRowIndex) {
         if (this.useClientColor.getValue()) {
             return ColorUtil.getRainbowColor(this.rainbowSpeed.getValue().intValue(),

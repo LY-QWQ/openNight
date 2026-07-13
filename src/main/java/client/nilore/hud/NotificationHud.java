@@ -28,20 +28,25 @@ import client.nilore.render.Paint;
 import client.nilore.render.Renderer;
 import client.nilore.render.RoundedRectangle;
 import client.nilore.settings.impl.NumberSetting;
-import client.nilore.utils.math.LerpUtil;
 import client.nilore.utils.misc.SoundUtil;
 import client.nilore.utils.render.ColorUtil;
 import client.nilore.utils.render.TextureUtil;
 
 public class NotificationHud extends HudElement {
 
-    private static final float CARD_WIDTH = 171.0f;
-    private static final float CARD_HEIGHT = 45.0f;
-    private static final float CARD_RADIUS = 5.4f;
-    private static final float PADDING = 7.2f;
-    private static final float BAR_HEIGHT = 2.7f;
-    private static final float SPACING = 5.4f;
-    private static final float ICON_SIZE = 21.6f;
+    private static final float SOUTHSIDE_WIDTH = 171.0f;
+    private static final float SOUTHSIDE_HEIGHT = 45.0f;
+    private static final float SOUTHSIDE_RADIUS = 5.4f;
+    private static final float SOUTHSIDE_PADDING = 7.2f;
+    private static final float SOUTHSIDE_BAR_HEIGHT = 2.7f;
+    private static final float SOUTHSIDE_SPACING = 5.4f;
+    private static final float SOUTHSIDE_ICON_SIZE = 21.6f;
+    private static final float SIMPLE_HEIGHT = 30.0f;
+    private static final float SIMPLE_RADIUS = 5.0f;
+    private static final float SIMPLE_PADDING = 7.0f;
+    private static final float SIMPLE_ICON_SIZE = 16.0f;
+    private static final float SIMPLE_ICON_GAP = 6.0f;
+    private static final float SIMPLE_SPACING = 4.0f;
     private static final int BG_COLOR = 0xFF111615;
     private static final int BAR_COLOR = 0xFFFFFFFF;
     private static final int BAR_BG_COLOR = 0xFF3A3A3A;
@@ -50,8 +55,9 @@ public class NotificationHud extends HudElement {
     private final NumberSetting margin = new NumberSetting("Margin", 8.0f, 0.0f, 100.0f, 1.0f);
     private final NumberSetting duration = new NumberSetting("Duration (ms)", 800, 500, 10000, 100);
     private final NumberSetting maxNotifications = new NumberSetting("Max Notifications", 7, 1, 10, 1);
-    private final BooleanSetting needSound = new BooleanSetting("Sound",true);
-    private final ModeSetting whichSound = new ModeSetting("Type","Sigma","Lever").withDefault("Sigma");
+    private final BooleanSetting needSound = new BooleanSetting("Sound", true);
+    private final ModeSetting whichSound = new ModeSetting("Type", "Sigma", "Lever").withDefault("Sigma");
+    private final ModeSetting style = new ModeSetting("Style", "southside", "simple").withDefault("southside");
 
     private final List<NotificationEntry> notifications = new ArrayList<>();
 
@@ -60,14 +66,14 @@ public class NotificationHud extends HudElement {
 
     public NotificationHud() {
         super("Notification");
-        this.setWidth(CARD_WIDTH);
-        this.setHeight(CARD_HEIGHT);
+        this.setWidth(SOUTHSIDE_WIDTH);
+        this.setHeight(SOUTHSIDE_HEIGHT);
         this.setEnabled(true);
     }
 
     @Override
     public void registerSettings() {
-        this.registerSetting(margin, duration, maxNotifications, needSound, whichSound);
+        this.registerSetting(margin, duration, maxNotifications, needSound, whichSound, style);
     }
 
     @EventTarget
@@ -76,11 +82,15 @@ public class NotificationHud extends HudElement {
             return;
         }
         loadTextures();
-        notifications.add(new NotificationEntry(
-                event.module().getName(),
-                event.enabled(),
-                System.currentTimeMillis()
-        ));
+        boolean simple = isSimpleStyle();
+        String displayText = event.module().getName() + (event.enabled() ? " Enabled" : " Disabled");
+        float width = simple
+                ? SIMPLE_PADDING * 2.0f + SIMPLE_ICON_SIZE + SIMPLE_ICON_GAP
+                + GlHelper.getStringWidth(displayText, FontPresets.pingfang(18.0f)) + 3.0f
+                : SOUTHSIDE_WIDTH;
+        notifications.add(new NotificationEntry(event.module().getName(), event.enabled(), System.currentTimeMillis(),
+                simple, displayText, width, simple ? SIMPLE_HEIGHT : SOUTHSIDE_HEIGHT,
+                simple ? SIMPLE_SPACING : SOUTHSIDE_SPACING));
         while (notifications.size() > maxNotifications.getValue().intValue()) {
             notifications.remove(0);
         }
@@ -91,8 +101,8 @@ public class NotificationHud extends HudElement {
                     else mc.player.playSound(SoundEvents.LEVER_CLICK, 1f, 0.5f);
                 }
             } else {
-                String soundName = event.enabled() ? "Enabled.wav" : "Disabled.wav";
-                SoundUtil.playSound(soundName, 0.0f);
+                String soundPath = event.enabled() ? "/assets/nilore/notifications/Enabled.wav" : "/assets/nilore/notifications/Disabled.wav";
+                SoundUtil.playResourceSound(soundPath, 0.0f);
             }
         }
     }
@@ -107,41 +117,37 @@ public class NotificationHud extends HudElement {
         float screenW = mc.getWindow().getGuiScaledWidth();
         float screenH = mc.getWindow().getGuiScaledHeight();
         float marginVal = margin.getValue().floatValue();
-        float targetX = screenW - CARD_WIDTH - marginVal;
-        float baseY = screenH - CARD_HEIGHT - marginVal;
+        this.setWidth(isSimpleStyle() ? 0.0f : SOUTHSIDE_WIDTH);
+        this.setHeight(isSimpleStyle() ? SIMPLE_HEIGHT : SOUTHSIDE_HEIGHT);
 
         Iterator<NotificationEntry> it = notifications.iterator();
         while (it.hasNext()) {
             NotificationEntry entry = it.next();
             long elapsed = now - entry.time;
+            float targetX = screenW - entry.width - marginVal;
+            float offscreenX = screenW + 10.0f;
 
             if (elapsed < dur) {
-                // Visible: entrance or steady state
                 if (!entry.entranceStarted) {
                     entry.entranceStarted = true;
                     entry.entranceTime = now;
-                    entry.x = screenW + 10.0f;
+                    entry.x = offscreenX;
                 }
                 float entranceElapsed = (now - entry.entranceTime) / 1000f;
-                float slideDuration = 0.08f;
-                float t = Math.min(1.0f, entranceElapsed / slideDuration);
-                entry.x = (screenW + 10.0f) + (targetX - (screenW + 10.0f)) * t;
+                float t = Math.min(1.0f, entranceElapsed / 0.08f);
+                entry.x = offscreenX + (targetX - offscreenX) * t;
                 entry.alpha = Math.min(1.0f, entry.alpha + 0.05f);
             } else if (!entry.exiting) {
-                // Time's up: start exit
                 entry.exiting = true;
                 entry.lastBarProgress = 0.0f;
                 entry.exitStartTime = now;
             } else {
-                // Exit — time-based linear, fast 0.04s
                 float exitElapsed = (now - entry.exitStartTime) / 1000f;
-                float exitDuration = 0.04f;
-                float t = Math.min(1.0f, exitElapsed / exitDuration);
-                entry.x = targetX + ((screenW + 10.0f) - targetX) * t;
+                float t = Math.min(1.0f, exitElapsed / 0.04f);
+                entry.x = targetX + (offscreenX - targetX) * t;
                 entry.alpha = 1.0f - t;
                 if (t >= 1.0f) {
                     it.remove();
-                    continue;
                 }
             }
         }
@@ -151,97 +157,93 @@ public class NotificationHud extends HudElement {
         }
 
         Renderer.render(event.guiGraphics(), drawContext -> {
-            for (int i = 0; i < notifications.size(); i++) {
-                NotificationEntry entry = notifications.get(i);
+            float nextY = screenH - marginVal;
+            for (NotificationEntry entry : notifications) {
+                float cardY = nextY - entry.height;
+                nextY = cardY - entry.spacing;
                 long elapsed = now - entry.time;
-                float fadeAlpha = Mth.clamp(entry.alpha, 0.0f, 1.0f);
-                float cardX = entry.x;
-                float cardY = baseY - i * (CARD_HEIGHT + SPACING);
-
-                float progress;
+                float progress = entry.exiting ? entry.lastBarProgress
+                        : 1.0f - Mth.clamp((float) elapsed / dur, 0.0f, 1.0f);
                 if (!entry.exiting) {
-                    progress = 1.0f - Mth.clamp((float) elapsed / dur, 0.0f, 1.0f);
                     entry.lastBarProgress = progress;
-                } else {
-                    progress = entry.lastBarProgress;
                 }
-
-                renderCard(drawContext, entry, cardX, cardY, progress, fadeAlpha);
+                renderCard(drawContext, entry, entry.x, cardY, progress, Mth.clamp(entry.alpha, 0.0f, 1.0f));
             }
         });
     }
 
-    private void renderCard(DrawContext drawContext, NotificationEntry entry,
-                            float x, float y, float progress, float alpha) {
-        RoundedRectangle rect = RoundedRectangle.ofXYWHRadii(x, y, CARD_WIDTH, CARD_HEIGHT - 2f, new float[]{CARD_RADIUS, CARD_RADIUS, 0, 0});
+    private void renderCard(DrawContext drawContext, NotificationEntry entry, float x, float y, float progress, float alpha) {
+        if (entry.simple) {
+            renderSimpleCard(drawContext, entry, x, y, alpha);
+        } else {
+            renderSouthsideCard(drawContext, entry, x, y, progress, alpha);
+        }
+    }
 
-        // Background
+    private void renderSouthsideCard(DrawContext drawContext, NotificationEntry entry,
+                                     float x, float y, float progress, float alpha) {
         try (Paint paint = new Paint()) {
             paint.setColor(ColorUtil.withAlpha(BG_COLOR, alpha));
-            drawContext.drawRoundedRect(rect, paint);
+            drawContext.drawRoundedRect(RoundedRectangle.ofXYWHRadii(x, y, entry.width, entry.height - 2f,
+                    new float[]{SOUTHSIDE_RADIUS, SOUTHSIDE_RADIUS, 0, 0}), paint);
         }
 
-        // Progress bar background track - bottom aligned with card bottom, sharing corner radius
-        float barBottom = y + CARD_HEIGHT;
-        float barY = barBottom - BAR_HEIGHT;
+        float barY = y + entry.height - SOUTHSIDE_BAR_HEIGHT;
         try (Paint paint = new Paint()) {
             paint.setColor(ColorUtil.withAlpha(BAR_BG_COLOR, alpha));
-            drawContext.drawRoundedRect(
-                    RoundedRectangle.ofXYWHRadii(x, barY, CARD_WIDTH, BAR_HEIGHT, new float[]{0, 0, CARD_RADIUS, CARD_RADIUS}),
-                    paint
-            );
+            drawContext.drawRoundedRect(RoundedRectangle.ofXYWHRadii(x, barY, entry.width, SOUTHSIDE_BAR_HEIGHT,
+                    new float[]{0, 0, SOUTHSIDE_RADIUS, SOUTHSIDE_RADIUS}), paint);
         }
-
-        // Progress bar
-        float barWidth = CARD_WIDTH * progress;
+        float barWidth = entry.width * progress;
         if (barWidth > 0.5f) {
             try (Paint paint = new Paint()) {
                 paint.setColor(ColorUtil.withAlpha(BAR_COLOR, alpha));
-                drawContext.drawRoundedRect(
-                        RoundedRectangle.ofXYWHRadii(x, barY, barWidth, BAR_HEIGHT, new float[]{0, 0, CARD_RADIUS, CARD_RADIUS}),
-                        paint
-                );
+                drawContext.drawRoundedRect(RoundedRectangle.ofXYWHRadii(x, barY, barWidth, SOUTHSIDE_BAR_HEIGHT,
+                        new float[]{0, 0, SOUTHSIDE_RADIUS, SOUTHSIDE_RADIUS}), paint);
             }
         }
 
-        // Icon (pure white, original PNG colors preserved)
-        DynamicTexture icon = entry.enabled ? enabledIcon : disabledIcon;
-        float textOffsetX = PADDING;
-        if (icon != null) {
-            float drawSize = entry.enabled ? ICON_SIZE * 0.9f : ICON_SIZE;
-            float iconX = x + PADDING;
-            float iconY = y + (CARD_HEIGHT - BAR_HEIGHT - drawSize) / 2.0f;
-            RenderSystem.setShader(GameRenderer::getPositionTexShader);
-            RenderSystem.setShaderTexture(0, icon.getId());
-            RenderSystem.enableBlend();
-            RenderSystem.defaultBlendFunc();
-            Matrix4f pose = drawContext.getPoseStack().last().pose();
-            Tesselator tesselator = Tesselator.getInstance();
-            BufferBuilder bufferBuilder = tesselator.getBuilder();
-            bufferBuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
-            bufferBuilder.vertex(pose, iconX, iconY, 0.0f).uv(0.0f, 0.0f).endVertex();
-            bufferBuilder.vertex(pose, iconX, iconY + drawSize, 0.0f).uv(0.0f, 1.0f).endVertex();
-            bufferBuilder.vertex(pose, iconX + drawSize, iconY + drawSize, 0.0f).uv(1.0f, 1.0f).endVertex();
-            bufferBuilder.vertex(pose, iconX + drawSize, iconY, 0.0f).uv(1.0f, 0.0f).endVertex();
-            BufferUploader.drawWithShader(bufferBuilder.end());
-            textOffsetX = PADDING + ICON_SIZE + 5.4f;
-        }
-
-        // Title text
+        float drawSize = entry.enabled ? SOUTHSIDE_ICON_SIZE * 0.9f : SOUTHSIDE_ICON_SIZE;
+        drawIcon(drawContext, entry.enabled, x + SOUTHSIDE_PADDING,
+                y + (entry.height - SOUTHSIDE_BAR_HEIGHT - drawSize) / 2.0f, drawSize, alpha);
+        float textX = x + SOUTHSIDE_PADDING + SOUTHSIDE_ICON_SIZE + 5.4f;
         FontRenderer titleFont = FontPresets.pingfang(16.2f);
         FontRenderer descFont = FontPresets.pingfang(12.6f);
+        GlHelper.drawText("Module", textX, y + SOUTHSIDE_PADDING + 6.05f, titleFont, ColorUtil.withAlpha(TEXT_COLOR, alpha));
+        GlHelper.drawText("Toggled " + entry.name + " " + (entry.enabled ? "on" : "off"), textX,
+                y + SOUTHSIDE_PADDING + 18.25f, descFont, ColorUtil.withAlpha(0xFFCCCCCC, alpha));
+    }
 
-        float textX = x + textOffsetX;
-        float titleY = y + PADDING + 6.05f;
-        float descY = titleY + 12.2f;
+    private void renderSimpleCard(DrawContext drawContext, NotificationEntry entry, float x, float y, float alpha) {
+        try (Paint paint = new Paint()) {
+            paint.setColor(ColorUtil.withAlpha(BG_COLOR, alpha));
+            drawContext.drawRoundedRect(RoundedRectangle.ofXYWHR(x, y, entry.width, entry.height, SIMPLE_RADIUS), paint);
+        }
+        float drawSize = entry.enabled ? SIMPLE_ICON_SIZE * 0.9f : SIMPLE_ICON_SIZE;
+        drawIcon(drawContext, entry.enabled, x + SIMPLE_PADDING, y + (entry.height - drawSize) / 2.0f, drawSize, alpha);
+        FontRenderer font = FontPresets.pingfang(18.0f);
+        GlHelper.drawText(entry.displayText, x + SIMPLE_PADDING + SIMPLE_ICON_SIZE + SIMPLE_ICON_GAP,
+                y + entry.height / 2.0f - 2f, font, ColorUtil.withAlpha(TEXT_COLOR, alpha));
+    }
 
-        int titleColor = ColorUtil.withAlpha(TEXT_COLOR, alpha);
-        int descColor = ColorUtil.withAlpha(0xFFCCCCCC, alpha);
-
-        GlHelper.drawText("Module", textX, titleY, titleFont, titleColor);
-
-        String stateText = "Toggled " + entry.name + " " + (entry.enabled ? "on" : "off");
-        GlHelper.drawText(stateText, textX, descY, descFont, descColor);
+    private void drawIcon(DrawContext drawContext, boolean enabled, float x, float y, float size, float alpha) {
+        DynamicTexture icon = enabled ? enabledIcon : disabledIcon;
+        if (icon == null) {
+            return;
+        }
+        int iconAlpha = Math.round(alpha * 255.0f);
+        RenderSystem.setShader(GameRenderer::getPositionTexColorShader);
+        RenderSystem.setShaderTexture(0, icon.getId());
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        Matrix4f pose = drawContext.getPoseStack().last().pose();
+        BufferBuilder bufferBuilder = Tesselator.getInstance().getBuilder();
+        bufferBuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
+        bufferBuilder.vertex(pose, x, y, 0.0f).uv(0.0f, 0.0f).color(255, 255, 255, iconAlpha).endVertex();
+        bufferBuilder.vertex(pose, x, y + size, 0.0f).uv(0.0f, 1.0f).color(255, 255, 255, iconAlpha).endVertex();
+        bufferBuilder.vertex(pose, x + size, y + size, 0.0f).uv(1.0f, 1.0f).color(255, 255, 255, iconAlpha).endVertex();
+        bufferBuilder.vertex(pose, x + size, y, 0.0f).uv(1.0f, 0.0f).color(255, 255, 255, iconAlpha).endVertex();
+        BufferUploader.drawWithShader(bufferBuilder.end());
     }
 
     @Override
@@ -252,19 +254,28 @@ public class NotificationHud extends HudElement {
     public void onSettings() {
     }
 
+    private boolean isSimpleStyle() {
+        return "simple".equals(style.getValue());
+    }
+
     private void loadTextures() {
         if (enabledIcon != null && disabledIcon != null) {
             return;
         }
-        enabledIcon = TextureUtil.loadTexture("Enabled.png");
-        disabledIcon = TextureUtil.loadTexture("Disabled.png");
+        enabledIcon = TextureUtil.loadResourceTexture("/assets/nilore/notifications/Enabled.png");
+        disabledIcon = TextureUtil.loadResourceTexture("/assets/nilore/notifications/Disabled.png");
     }
 
     private static class NotificationEntry {
         final String name;
         final boolean enabled;
         final long time;
-        float x;
+        final boolean simple;
+        final String displayText;
+        final float width;
+        final float height;
+        final float spacing;
+        float x = 9999f;
         float alpha;
         boolean entranceStarted;
         long entranceTime;
@@ -272,12 +283,16 @@ public class NotificationHud extends HudElement {
         long exitStartTime;
         float lastBarProgress = 1.0f;
 
-        NotificationEntry(String name, boolean enabled, long time) {
+        NotificationEntry(String name, boolean enabled, long time, boolean simple, String displayText,
+                          float width, float height, float spacing) {
             this.name = name;
             this.enabled = enabled;
             this.time = time;
-            this.x = 9999f;
-            this.alpha = 0f;
+            this.simple = simple;
+            this.displayText = displayText;
+            this.width = width;
+            this.height = height;
+            this.spacing = spacing;
         }
     }
 }

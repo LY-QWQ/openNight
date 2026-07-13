@@ -211,8 +211,8 @@ public class MoonTargetStyle
         currentTargetName = "Moon";
         COLOR_PANEL_BG = new Color(0, 0, 0, 80);
         COLOR_HEALTH_BG = new Color(0, 0, 0, 100);
-        COLOR_HEALTH_BAR = new Color(0, 150, 255);
-        COLOR_HEALTH_BAR2 = new Color(0, 100, 255);
+        COLOR_HEALTH_BAR = new Color(0, 190, 255);
+        COLOR_HEALTH_BAR2 = new Color(0, 230, 255);
         COLOR_HEALTH_LAG = new Color(99, 99, 99, 120);
     }
 }

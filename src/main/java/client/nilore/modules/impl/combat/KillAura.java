@@ -1,7 +1,17 @@
 package client.nilore.modules.impl.combat;
 
+import com.mojang.blaze3d.platform.NativeImage;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.BufferUploader;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.math.Axis;
 import java.awt.Color;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -10,7 +20,10 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import net.minecraft.client.Camera;
+import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraftforge.client.ForgeHooksClient;
@@ -30,6 +43,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
+import org.joml.Matrix4f;
 import client.nilore.ClientBase;
 import client.nilore.NiloreClient;
 import client.nilore.event.impl.PreMotionEvent;
@@ -37,6 +51,7 @@ import client.nilore.event.impl.RenderEvent;
 import client.nilore.event.impl.SprintEvent;
 import client.nilore.event.impl.TickEvent;
 import client.nilore.event.impl.WorldChangeEvent;
+import client.nilore.hud.ModuleListHud;
 import client.nilore.modules.Category;
 import client.nilore.modules.Module;
 import client.nilore.modules.impl.combat.antikb.NoXZMode;
@@ -57,6 +72,7 @@ import client.nilore.utils.game.RayTraceUtil;
 import client.nilore.utils.game.RotationUtil;
 import client.nilore.utils.math.MathUtil;
 import client.nilore.utils.misc.ChatUtil;
+import client.nilore.utils.misc.Assets;
 import client.nilore.utils.render.RenderUtil;
 import client.nilore.utils.rotation.Rotation;
 import client.nilore.utils.rotation.RotationHandler;
@@ -67,6 +83,11 @@ public class KillAura extends Module {
     public static Entity target;
     public static Entity aimingTarget;
     public static List<Entity> targetList = new ArrayList<>();
+
+    private static final ResourceLocation NURIK_CAPTURE_TEXTURE = ResourceLocation.tryParse("nilore:nurik/capture");
+    private static final String NURIK_CAPTURE_ASSET = "/assets/nilore/nurik/capture.png";
+    private static boolean nurikTextureLoaded;
+    private static boolean nurikTextureLoadFailed;
 
     // Fields kept in sync with the obfuscated jar: 13 BooleanSetting / 7
     // NumberSetting / 3 ModeSetting, in declaration order.
@@ -94,7 +115,7 @@ public class KillAura extends Module {
     public final NumberSetting hurtTime    = new NumberSetting("Hurt Time", 10.0, 0.0, 10.0, 1.0);
     public final ModeSetting delayMode    = new ModeSetting("Delay Mode", "1.8", "1.9").withDefault("1.8");
     public final ModeSetting priorityMode = new ModeSetting("Priority", "Distance", "FoV", "Health", "None").withDefault("FoV");
-    public final ModeSetting targetEsp    = new ModeSetting("Target ESP", "None", "Spiral", "Box", "Tab").withDefault("Spiral");
+    public final ModeSetting targetEsp    = new ModeSetting("Target ESP", "None", "Spiral", "Box", "Tab", "NurikZapen").withDefault("Spiral");
 
     public final BooleanSetting predictionEnabled  = new BooleanSetting("Prediction", true);
     public final NumberSetting enemyDelayThreshold = new NumberSetting("Enemy Delay Ticks", 4, 1, 5, 1,
@@ -291,10 +312,92 @@ public class KillAura extends Module {
                         base.maxX, base.maxY - 0.13, base.maxZ);
                 RenderUtil.drawFilledColoredBox(band, poseStack, color, color);
             }
+            case "NurikZapen" -> this.renderNurikZapen(poseStack, entity, event.partialTick());
             default -> {
             }
         }
         poseStack.popPose();
+    }
+
+    private static void ensureNurikCaptureTexture() {
+        if (nurikTextureLoaded || nurikTextureLoadFailed) {
+            return;
+        }
+        try (InputStream inputStream = Assets.open(NURIK_CAPTURE_ASSET)) {
+            if (inputStream == null) {
+                nurikTextureLoadFailed = true;
+                System.out.println("KillAura: NurikZapen texture not found - " + NURIK_CAPTURE_ASSET);
+                return;
+            }
+            mc.getTextureManager().register(NURIK_CAPTURE_TEXTURE, new DynamicTexture(NativeImage.read(inputStream)));
+            nurikTextureLoaded = true;
+        } catch (IOException exception) {
+            nurikTextureLoadFailed = true;
+            System.out.println("KillAura: failed to load NurikZapen texture - " + exception.getMessage());
+        }
+    }
+
+    private void renderNurikZapen(PoseStack poseStack, Entity entity, float partialTick) {
+        ensureNurikCaptureTexture();
+        if (!nurikTextureLoaded) {
+            return;
+        }
+
+        double x = Mth.lerp(partialTick, entity.xOld, entity.getX());
+        double y = Mth.lerp(partialTick, entity.yOld, entity.getY()) + entity.getEyeHeight() * 0.5f;
+        double z = Mth.lerp(partialTick, entity.zOld, entity.getZ());
+        Camera camera = mc.gameRenderer.getMainCamera();
+
+        poseStack.pushPose();
+        try {
+            poseStack.translate(x, y, z);
+            poseStack.mulPose(Axis.YP.rotationDegrees(180.0f - camera.getYRot()));
+            poseStack.mulPose(Axis.XP.rotationDegrees(-camera.getXRot()));
+            poseStack.mulPose(Axis.ZP.rotationDegrees((float) ((System.currentTimeMillis() / 5.0) % 360.0)));
+
+            RenderSystem.enableBlend();
+            RenderSystem.defaultBlendFunc();
+            RenderSystem.disableCull();
+            RenderSystem.disableDepthTest();
+            RenderSystem.depthMask(false);
+            RenderSystem.setShader(GameRenderer::getPositionTexColorShader);
+            RenderSystem.setShaderTexture(0, NURIK_CAPTURE_TEXTURE);
+
+            ModuleListHud moduleList = NiloreClient.getInstance().getHudManager().getHudElement(ModuleListHud.class);
+            int[] colors = moduleList == null
+                    ? new int[]{0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF}
+                    : new int[]{
+                            moduleList.getThemeColor(0, 0.0f, 3),
+                            moduleList.getThemeColor(1, 0.33f, 3),
+                            moduleList.getThemeColor(2, 0.67f, 3),
+                            moduleList.getThemeColor(3, 1.0f, 3)
+                    };
+            float size = 0.75f;
+            float[][] corners = {
+                    {-size, size, 0.0f, 0.0f},
+                    {size, size, 1.0f, 0.0f},
+                    {size, -size, 1.0f, 1.0f},
+                    {-size, -size, 0.0f, 1.0f}
+            };
+            Matrix4f matrix = poseStack.last().pose();
+            BufferBuilder bufferBuilder = Tesselator.getInstance().getBuilder();
+            bufferBuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
+            for (int i = 0; i < corners.length; i++) {
+                int color = colors[i];
+                bufferBuilder.vertex(matrix, corners[i][0], corners[i][1], 0.0f)
+                        .uv(corners[i][2], corners[i][3])
+                        .color((color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF, 200)
+                        .endVertex();
+            }
+            BufferUploader.drawWithShader(bufferBuilder.end());
+        } finally {
+            RenderSystem.depthMask(true);
+            RenderSystem.enableDepthTest();
+            RenderSystem.enableCull();
+            RenderSystem.disableBlend();
+            RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, 1.0f);
+            poseStack.popPose();
+        }
     }
 
     @EventTarget

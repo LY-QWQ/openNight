@@ -47,7 +47,10 @@
       "Bash(python *)",
       "Bash(git reset *)",
       "Bash(git show *)",
-      "Bash(./gradlew runClient0 *)"
+      "Bash(./gradlew runClient0 *)",
+      "Read(//c/Users/44237/Desktop/**)",
+      "Bash(curl *)",
+      "Bash(git log *)"
     ]
   }
 }

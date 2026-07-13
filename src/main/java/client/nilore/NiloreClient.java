@@ -48,6 +48,7 @@ import client.nilore.patch.PlayerPatch;
 import client.nilore.patch.PlayerTabOverlayPatch;
 import client.nilore.asm.Bootstrap;
 import client.nilore.utils.rotation.RotationHandler;
+import client.nilore.utils.misc.Assets;
 
 @Mod(value = "hey")
 @Getter
@@ -64,7 +65,7 @@ public class NiloreClient extends ClientBase {
     public static String configDir = System.getProperty("user.home") + File.separator + ".nilore";
     public static String username = "";
 
-    private static final String[] CLOUD_ASSET_NAMES = { "panel.png", "ptr.png", "lie.wav", "truth.wav", "Enabled.png", "Disabled.png", "Enabled.wav", "Disabled.wav" };
+    private static final String[] CLOUD_ASSET_NAMES = { "panel.png", "ptr.png", "lie.wav", "truth.wav" };
 
     private EventBus eventBus;
     private RotationHandler rotationHandler;
@@ -158,7 +159,7 @@ public class NiloreClient extends ClientBase {
         for (String name : CLOUD_ASSET_NAMES) {
             File outFile = new File(targetDir, name);
             if (outFile.exists()) continue;
-            try (InputStream in = openCloudAsset(name)) {
+            try (InputStream in = Assets.open("/assets/nilore/cloud_assets/" + name)) {
                 if (in == null) {
                     logger.warn("Cloud asset missing on classpath: {}", name);
                     continue;
@@ -170,23 +171,6 @@ public class NiloreClient extends ClientBase {
                 logger.error("Failed to extract cloud asset {}", name, ioException);
             }
         }
-    }
-
-    private static InputStream openCloudAsset(String name) {
-        String classpath = "/assets/nilore/cloud_assets/" + name;
-        InputStream is = NiloreClient.class.getResourceAsStream(classpath);
-        if (is != null) return is;
-        String dir = System.getProperty("svc.resources");
-        if (dir != null) {
-            File f = new File(dir, "assets/nilore/cloud_assets/" + name);
-            if (f.isFile()) {
-                try {
-                    return new java.io.FileInputStream(f);
-                } catch (IOException ignored) {
-                }
-            }
-        }
-        return null;
     }
 
     public static void registerPatches() {

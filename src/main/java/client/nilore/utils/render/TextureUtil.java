@@ -12,6 +12,7 @@ import java.util.Map;
 import lombok.Generated;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import client.nilore.manager.ConfigManager;
+import client.nilore.utils.misc.Assets;
 
 public final class TextureUtil {
     private static final Map<String, DynamicTexture> textureCache = new HashMap<>();
@@ -33,6 +34,26 @@ public final class TextureUtil {
             }
         }
         return dynamicTexture;
+    }
+
+    public static DynamicTexture loadResourceTexture(String resourcePath) {
+        String cacheKey = "resource:" + resourcePath;
+        DynamicTexture dynamicTexture = textureCache.get(cacheKey);
+        if (dynamicTexture != null) {
+            return dynamicTexture;
+        }
+        try (InputStream inputStream = Assets.open(resourcePath)) {
+            if (inputStream == null) {
+                System.out.println("Failed to find resource texture: " + resourcePath);
+                return TextureUtil.getMissingTexture();
+            }
+            NativeImage nativeImage = NativeImage.read(inputStream);
+            dynamicTexture = new DynamicTexture(nativeImage);
+            textureCache.put(cacheKey, dynamicTexture);
+            return dynamicTexture;
+        } catch (java.io.IOException ioException) {
+            return TextureUtil.getMissingTexture();
+        }
     }
 
     private static DynamicTexture getMissingTexture() {

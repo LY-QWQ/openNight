@@ -17,6 +17,7 @@ import client.nilore.ClientBase;
 import client.nilore.NiloreClient;
 import client.nilore.event.impl.PacketEvent;
 import client.nilore.event.impl.PrePacketEvent;
+import client.nilore.event.impl.ReceivePacketEvent;
 import client.nilore.utils.misc.PacketUtil;
 
 @Patch(Connection.class)
@@ -32,7 +33,12 @@ public class ConnectionPatch extends ClientBase {
         }
         PacketEvent event = new PacketEvent(prePacket.getPacket(), false);
         NiloreClient.getInstance().getEventBus().call(event);
-        return event.isCancelled();
+        if (event.isCancelled()) {
+            return true;
+        }
+        ReceivePacketEvent receiveEvent = new ReceivePacketEvent((Packet) event.getPacket());
+        NiloreClient.getInstance().getEventBus().call(receiveEvent);
+        return receiveEvent.isCancelled();
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})

@@ -2,12 +2,9 @@ package client.nilore.network;
 
 import net.minecraft.network.PacketListener;
 import net.minecraft.network.protocol.Packet;
-import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.server.RunningOnDifferentThreadException;
 import net.minecraft.util.thread.BlockableEventLoop;
 import org.slf4j.Logger;
-import client.nilore.NiloreClient;
-import client.nilore.event.impl.ReceivePacketEvent;
 
 public class PacketHandlerUtil {
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -21,13 +18,6 @@ public class PacketHandlerUtil {
                 return;
             }
             try {
-                ReceivePacketEvent event = new ReceivePacketEvent((Packet<ClientGamePacketListener>) (Packet) packet);
-                if (loop.isSameThread() && NiloreClient.isReady()) {
-                    NiloreClient.instance.getEventBus().call(event);
-                    if (event.isCancelled()) {
-                        return;
-                    }
-                }
                 packet.handle(listener);
             } catch (Exception exception) {
                 if (listener.shouldPropagateHandlingExceptions()) {
