@@ -26,6 +26,7 @@ import client.nilore.event.impl.RenderEvent;
 import client.nilore.event.impl.WorldChangeEvent;
 import client.nilore.modules.Category;
 import client.nilore.modules.Module;
+import client.nilore.settings.impl.BooleanSetting;
 import client.nilore.utils.game.BlockUtil;
 import client.nilore.utils.game.ChunkUtil;
 import client.nilore.utils.render.RenderUtil;
@@ -35,6 +36,7 @@ public class ChestESP
 extends Module {
     private static final float[] chestColor;
     private static final float[] openedChestColor;
+    private final BooleanSetting override = new BooleanSetting("Override", false);
     private final List<BlockPos> openedChestPositions = new CopyOnWriteArrayList<>();
     private final List<AABB> renderBoundingBoxes = new CopyOnWriteArrayList<>();
     private static final String MODULE_NAME;
@@ -82,12 +84,21 @@ extends Module {
             return null;
         }
         BlockPos blockPos2 = chestBlockEntity.getBlockPos();
-        AABB aABB = BlockUtil.getBoundingBox(blockPos2);
+        AABB aABB = this.getRenderBoundingBox(blockPos2);
         if (chestType != ChestType.SINGLE && BlockUtil.canBeClicked(blockPos = blockPos2.relative(ChestBlock.getConnectedDirection(blockState)))) {
-            AABB aABB2 = BlockUtil.getBoundingBox(blockPos);
+            AABB aABB2 = this.getRenderBoundingBox(blockPos);
             aABB = aABB.minmax(aABB2);
         }
         return aABB;
+    }
+
+    private AABB getRenderBoundingBox(BlockPos blockPos) {
+        if (override.getValue()) {
+            return new AABB(
+                    blockPos.getX(), blockPos.getY(), blockPos.getZ(),
+                    blockPos.getX() + 1.0, blockPos.getY() + 1.0, blockPos.getZ() + 1.0);
+        }
+        return BlockUtil.getBoundingBox(blockPos);
     }
 
     @EventTarget

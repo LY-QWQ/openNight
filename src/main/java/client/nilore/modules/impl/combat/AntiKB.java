@@ -24,15 +24,12 @@ import client.nilore.settings.impl.NumberSetting;
 import client.nilore.utils.animation.Timer;
 import client.nilore.utils.rotation.Rotation;
 import client.nilore.event.EventTarget;
-import net.minecraft.network.protocol.game.ClientboundPingPacket;
-import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
 
 public class AntiKB
         extends Module {
     public static AntiKB INSTANCE;
     public static Rotation rotation;
     public static ModeSetting mode;
-    public final BooleanSetting autoJump = new BooleanSetting("Auto Jump", false, () -> mode.is("Grim Full") || mode.is("Grim Fast"));
     public final BooleanSetting rotate = new BooleanSetting("Rotate", false, () -> mode.is("Jump Reset") || mode.is("Mix"));
     public final BooleanSetting tryAttack = new BooleanSetting("Try Attack", false, () -> mode.is("Mix"));
     public final BooleanSetting movementOverride = new BooleanSetting("Movement Override", false, () -> mode.is("Mix"));
@@ -43,9 +40,6 @@ public class AntiKB
     public final BooleanSetting instantAttack = new BooleanSetting("Instant Attack", false, () -> mode.is("NoXZ"));
     public final BooleanSetting sprintStateCheck = new BooleanSetting("Sprint state check", true, () -> mode.is("NoXZ"));
     public final BooleanSetting debugLog = new BooleanSetting("Debug Log", false);
-    public final BooleanSetting grimCancel = new BooleanSetting("Full When Water", false);
-    public final NumberSetting grimCancelBuffer = new NumberSetting("Grim Cancel Buffer", 1.0, 0.0, 5.0, 1);
-    private int grimPingCancelCount = 0;
     private final Timer grimSyncTimer = new Timer();
     public AntiKB() {
         super("AntiKB", Category.COMBAT);
@@ -55,7 +49,6 @@ public class AntiKB
 
     @Override
     public void onEnable() {
-        this.grimPingCancelCount = 0;
         this.grimSyncTimer.reset();
         Optional<AntiKBMode> optional;
         rotation = null;
@@ -70,7 +63,6 @@ public class AntiKB
 
     @Override
     public void onDisable() {
-        this.grimPingCancelCount = 0;
         rotation = null;
         Optional<AntiKBMode> optional = AntiKBMode.findMode(mode.getValue());
         if (optional.isEmpty()) {
@@ -81,10 +73,6 @@ public class AntiKB
 
     @EventTarget
     public void onGameTick(GameTickEvent gameTickEvent) {
-        if (this.grimCancel.getValue() && mc.player != null && !FireballBlink.INSTANCE.isEnabled() && !HighJump.INSTANCE.isEnabled()
-                && (mc.player.isInWater() || mc.player.isUnderWater()) && this.grimPingCancelCount > 0 && this.grimSyncTimer.hasPassed(2000L)) {
-            this.grimPingCancelCount = 0;
-        }
         Optional<AntiKBMode> optional = AntiKBMode.findMode(mode.getValue());
         if (FireballBlink.INSTANCE.isEnabled() || HighJump.INSTANCE.isEnabled() || optional.isEmpty()) {
             return;
@@ -139,18 +127,6 @@ public class AntiKB
 
     @EventTarget(value=1)
     public void onReceivePacket(ReceivePacketEvent receivePacketEvent) {
-        if (this.grimCancel.getValue() && mc.player != null && !FireballBlink.INSTANCE.isEnabled() && !HighJump.INSTANCE.isEnabled()
-                && (mc.player.isInWater() || mc.player.isUnderWater())) {
-            var packet = receivePacketEvent.getPacket();
-            if (packet instanceof ClientboundSetEntityMotionPacket motion && motion.getId() == mc.player.getId()) {
-                receivePacketEvent.setCancelled(true);
-                this.grimPingCancelCount = 1 + this.grimCancelBuffer.getValue().intValue();
-            } else if (packet instanceof ClientboundPingPacket && this.grimPingCancelCount > 0) {
-                receivePacketEvent.setCancelled(true);
-                this.grimPingCancelCount--;
-                return;
-            }
-        }
         Optional<AntiKBMode> optional = AntiKBMode.findMode(mode.getValue());
         if (FireballBlink.INSTANCE.isEnabled() || HighJump.INSTANCE.isEnabled() || optional.isEmpty()) {
             return;

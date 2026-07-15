@@ -368,7 +368,7 @@ extends ClientBase {
         return false;
     }
 
-    private static HitResult performRaycast(Rotation rotation) {
+    public static HitResult performRaycast(Rotation rotation) {
         AABB expandedBB;
         double pickRange = mc.gameMode.getPickRange();
         HitResult hitResult = RayTraceUtil.rayTrace(pickRange, 1.0f, false, rotation);

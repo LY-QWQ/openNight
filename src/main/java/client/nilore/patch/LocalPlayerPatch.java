@@ -98,7 +98,9 @@ public class LocalPlayerPatch {
     )
     public static void onTick(LocalPlayer player, CallbackInfo callbackInfo) throws Throwable {
         if (NiloreClient.isReady()) {
-            NiloreClient.getInstance().getEventBus().call(new SprintEvent());
+            SprintEvent event = new SprintEvent(player.isSprinting(), SprintEvent.Source.INPUT);
+            NiloreClient.getInstance().getEventBus().call(event);
+            player.setSprinting(event.isSprint());
         }
     }
 

@@ -38,6 +38,7 @@ public class AudioPlayer {
 
     // seek support
     private volatile long seekTargetMs = -1;
+    private volatile long seekDisplayMs = -1;
     private volatile long bytesConsumedFromStream = 0;
 
     public void play(SongInfo song, String url) {
@@ -54,6 +55,7 @@ public class AudioPlayer {
         this.totalPausedMs = 0;
         this.playStartMs = System.currentTimeMillis();
         this.seekTargetMs = -1;
+        this.seekDisplayMs = -1;
         playbackThread = new Thread(() -> playInternal(url, generation, song, onNaturalEnd), "MusicPlayer-Playback");
         playbackThread.setDaemon(true);
         playbackThread.start();
@@ -84,10 +86,12 @@ public class AudioPlayer {
         state.set(State.STOPPED);
         paused = false;
         seekTargetMs = -1;
+        seekDisplayMs = -1;
         currentSong = null;
         currentUrl = null;
         if (currentLine != null) {
-            try { currentLine.drain(); } catch (Exception ignored) {}
+            try { currentLine.stop(); } catch (Exception ignored) {}
+            try { currentLine.flush(); } catch (Exception ignored) {}
             try { currentLine.close(); } catch (Exception ignored) {}
             currentLine = null;
         }
@@ -116,6 +120,7 @@ public class AudioPlayer {
         State s = state.get();
         if (s != State.PLAYING && s != State.PAUSED) return;
         targetMs = Math.max(0, Math.min(targetMs, song.duration));
+        seekDisplayMs = targetMs;
         seekTargetMs = targetMs;
     }
 
@@ -148,6 +153,10 @@ public class AudioPlayer {
     public float getProgress() {
         SongInfo song = currentSong;
         if (song == null || song.duration <= 0) return 0f;
+        long pendingSeek = seekDisplayMs;
+        if (pendingSeek >= 0) {
+            return Math.max(0f, Math.min(1f, (float) pendingSeek / song.duration));
+        }
         State s = state.get();
         if (s == State.STOPPED || s == State.LOADING) return 0f;
         long now = System.currentTimeMillis();
@@ -158,6 +167,8 @@ public class AudioPlayer {
 
     public long getCurrentPositionMs() {
         if (currentSong == null) return 0;
+        long pendingSeek = seekDisplayMs;
+        if (pendingSeek >= 0) return pendingSeek;
         long now = System.currentTimeMillis();
         State s = state.get();
         if (s == State.STOPPED || s == State.LOADING) return 0;
@@ -253,15 +264,41 @@ public class AudioPlayer {
             localLine.open(decoded);
             currentLine = localLine;
             applyVolume();
-            localLine.start();
+            if (seekTargetMs < 0 && !paused) {
+                localLine.start();
+            }
 
-            playStartMs = System.currentTimeMillis();
+            long displayedPosition = seekDisplayMs;
+            playStartMs = System.currentTimeMillis() - Math.max(0, displayedPosition);
             totalPausedMs = 0;
             state.set(State.PLAYING);
             bytesConsumedFromStream = 0;
 
             int bytesPerFrame = decoded.getFrameSize();
             int sampleRate = (int) decoded.getSampleRate();
+            boolean fadeInPending = false;
+
+            long initialSeek = seekTargetMs;
+            if (initialSeek >= 0) {
+                seekTargetMs = -1;
+                long bytesToSkip = (long) (initialSeek / 1000.0 * sampleRate * bytesPerFrame);
+                byte[] skipBuffer = new byte[8192];
+                while (bytesConsumedFromStream < bytesToSkip) {
+                    long remaining = bytesToSkip - bytesConsumedFromStream;
+                    int skipped = ais.read(skipBuffer, 0, (int) Math.min(skipBuffer.length, remaining));
+                    if (skipped < 0) break;
+                    bytesConsumedFromStream += skipped;
+                }
+                playStartMs = System.currentTimeMillis() - initialSeek;
+                totalPausedMs = 0;
+                seekDisplayMs = -1;
+                fadeInPending = true;
+                if (paused) {
+                    pauseStartMs = System.currentTimeMillis();
+                } else {
+                    localLine.start();
+                }
+            }
 
             byte[] buffer = new byte[4096];
             byte[] pcmBuffer = new byte[buffer.length + bytesPerFrame - 1];
@@ -283,6 +320,12 @@ public class AudioPlayer {
                     long absoluteTargetBytes = (long) (seek / 1000.0 * sampleRate * bytesPerFrame);
                     long relativeSkip = absoluteTargetBytes - bytesConsumedFromStream;
 
+                    localLine.stop();
+                    localLine.flush();
+                    pendingPcmLength = 0;
+                    analysisSampleCount = 0;
+                    spectrumSnapshot.set(new float[0]);
+
                     if (relativeSkip > 0) {
                         // Forward seek: skip bytes in current stream
                         long skipped = 0;
@@ -298,16 +341,17 @@ public class AudioPlayer {
                     } else if (relativeSkip < 0) {
                         // Backward seek: can't rewind HTTP stream, restart from URL
                         seekTargetMs = seek; // preserve for restart
-                        localLine.flush();
                         break;
                     }
 
-                    localLine.flush();
-                    pendingPcmLength = 0;
                     playStartMs = System.currentTimeMillis() - seek;
                     totalPausedMs = 0;
+                    seekDisplayMs = -1;
+                    fadeInPending = true;
                     if (paused) {
                         pauseStartMs = System.currentTimeMillis();
+                    } else {
+                        localLine.start();
                     }
                     continue;
                 }
@@ -321,6 +365,10 @@ public class AudioPlayer {
                 int pcmLength = pendingPcmLength + bytesRead;
                 int completeLength = pcmLength - pcmLength % bytesPerFrame;
                 if (completeLength > 0) {
+                    if (fadeInPending) {
+                        applyFadeIn(pcmBuffer, completeLength, decoded.getChannels());
+                        fadeInPending = false;
+                    }
                     analyzePcm(pcmBuffer, completeLength, decoded.getChannels(), generation);
                     localLine.write(pcmBuffer, 0, completeLength);
                 }
@@ -336,7 +384,7 @@ public class AudioPlayer {
             // Check for pending backward seek — restart stream from URL
             long pendingSeek = seekTargetMs;
             if (pendingSeek >= 0 && state.get() != State.STOPPED) {
-                seekTargetMs = -1;
+                seekTargetMs = pendingSeek;
                 System.out.println("[MusicPlayer] Backward seek to " + pendingSeek + "ms, restarting stream");
                 playInternal(url, generation, song, onNaturalEnd); // recursive restart
                 return;
@@ -361,12 +409,35 @@ public class AudioPlayer {
             }
         } finally {
             if (localLine != null) {
-                try { localLine.drain(); } catch (Exception ignored) {}
+                try {
+                    if (naturalEnd) {
+                        localLine.drain();
+                    } else {
+                        localLine.stop();
+                        localLine.flush();
+                    }
+                } catch (Exception ignored) {}
                 try { localLine.close(); } catch (Exception ignored) {}
                 if (currentLine == localLine) currentLine = null;
             }
             if (naturalEnd && generation == playbackGeneration.get() && onNaturalEnd != null) {
                 onNaturalEnd.run();
+            }
+        }
+    }
+
+    private void applyFadeIn(byte[] pcm, int length, int channels) {
+        int frameSize = channels * 2;
+        int frames = Math.min(length / frameSize, 1024);
+        for (int frame = 0; frame < frames; frame++) {
+            float gain = frame / (float) frames;
+            int frameOffset = frame * frameSize;
+            for (int channel = 0; channel < channels; channel++) {
+                int offset = frameOffset + channel * 2;
+                short sample = (short) ((pcm[offset] & 0xFF) | (pcm[offset + 1] << 8));
+                short faded = (short) (sample * gain);
+                pcm[offset] = (byte) (faded & 0xFF);
+                pcm[offset + 1] = (byte) ((faded >>> 8) & 0xFF);
             }
         }
     }

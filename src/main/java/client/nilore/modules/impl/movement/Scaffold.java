@@ -61,7 +61,7 @@ public class Scaffold extends Module {
     public final BooleanSetting clutch = new BooleanSetting("Clutch", true);
     public final ModeSetting swingMode = new ModeSetting("Swing", "Both", "Server").withDefault("Both");
     public final BooleanSetting blockCounter = new BooleanSetting("Block Counter", true);
-    public final ModeSetting blockCounterStyle = new ModeSetting("Block Counter Style", "Simple", "Modern").withDefault("Simple");
+    public final ModeSetting blockCounterStyle = new ModeSetting("Block Counter Style", "Amunix", "Modern").withDefault("Modern");
     public final BooleanSetting onTickRot = new BooleanSetting("OnTickRot", false);
     public final NumberSetting rotationSpeed = new NumberSetting("Rotation Speed", 180, 0, 360, 5, () -> !this.syncRotSpeed.getValue());
     public final BooleanSetting syncRotSpeed = new BooleanSetting("Sync RotSpeed", false);

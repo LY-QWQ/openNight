@@ -39,7 +39,9 @@ import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.entity.monster.Slime;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
@@ -68,7 +70,6 @@ import client.nilore.settings.impl.ModeSetting;
 import client.nilore.settings.impl.NumberSetting;
 import client.nilore.utils.game.EntityUtil;
 import client.nilore.utils.game.ItemUtil;
-import client.nilore.utils.game.RayTraceUtil;
 import client.nilore.utils.game.RotationUtil;
 import client.nilore.utils.math.MathUtil;
 import client.nilore.utils.misc.ChatUtil;
@@ -551,7 +552,10 @@ public class KillAura extends Module {
 
         HitResult hitResult;
         if (this.overrideRaycast.getValue() && this.rotation != null) {
-            hitResult = RayTraceUtil.rayTrace(mc.gameMode.getPickRange(), 1.0f, false, this.rotation);
+            hitResult = RotationUtil.performRaycast(this.rotation);
+            if (hitResult == null || hitResult.getType() != HitResult.Type.ENTITY) {
+                return false;
+            }
         } else {
             hitResult = mc.hitResult;
         }
@@ -655,6 +659,17 @@ public class KillAura extends Module {
         } else {
             if (!(Boolean) this.predictionEnabled.getValue()
                     || this.predictDistance(entity) >= aimRange) {
+                return false;
+            }
+        }
+        // Wall check — reject if a block is between player and entity
+        if (mc.level == null) return false;
+        Vec3 eyePos = mc.player.getEyePosition(1.0f);
+        Vec3 targetPoint = RotationUtil.closestPoint(eyePos, entity.getBoundingBox());
+        // Skip wall check if player is inside the entity's bounding box
+        if (eyePos.distanceToSqr(targetPoint) > 1.0E-4) {
+            BlockHitResult blockHit = mc.level.clip(new ClipContext(eyePos, targetPoint, ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, mc.player));
+            if (blockHit.getType() == HitResult.Type.BLOCK) {
                 return false;
             }
         }

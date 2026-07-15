@@ -222,8 +222,10 @@ public class MusicPlayerHud extends HudElement {
         final float artRadius = 4.0f * SCALE;
         final float buttonSize = 20.0f * SCALE;
         final float buttonRadius = buttonSize * 0.5f;
-        final float renderWidth = width * SCALE;
-        final float renderHeight = height * SCALE;
+        final float artistWidth = GlHelper.getStringWidth(song.artist, coverArtistFont);
+        final float artistRequiredWidth = 42.0f * SCALE + artistWidth + padding + buttonSize + 5.0f * SCALE;
+        final float renderWidth = Math.max(width * SCALE, artistRequiredWidth);
+        final float renderHeight = height * SCALE + 2.0f;
         final float renderY = y + (1.0f - alpha) * 1.2f * SCALE;
         final float textX = x + 42.0f * SCALE;
         final float textRight = x + renderWidth - padding - buttonSize - 5.0f * SCALE;
@@ -234,7 +236,7 @@ public class MusicPlayerHud extends HudElement {
         final int primaryText = ColorUtil.fromARGB(245, 236, 235, (int) (alpha * 255.0f));
         final int secondaryText = ColorUtil.fromARGB(205, 185, 186, (int) (alpha * 224.0f));
         final int detailText = ColorUtil.fromARGB(176, 159, 160, (int) (alpha * 208.0f));
-        final int track = ColorUtil.fromARGB(76, 64, 67, (int) (alpha * 140.0f));
+        final int track = ColorUtil.fromARGB(108, 96, 102, (int) (alpha * 200.0f));
         final int progressColor = ColorUtil.fromARGB(247, 181, 204, (int) (alpha * 255.0f));
 
         if (glowSetting.getValue()) {
@@ -302,13 +304,33 @@ public class MusicPlayerHud extends HudElement {
 
         float progressX = artX;
         float progressY = renderY + artSize + 6.0f * SCALE;
-        float progressW = renderWidth - padding * 2.0f;
-        ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(progressX, progressY, progressW, 1.5f * SCALE, 0.75f * SCALE),
-                new Paint().setColor(track));
-        if (progress > 0.001f) {
-            ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(progressX, progressY,
-                            Math.max(2.0f * SCALE, progressW * progress), 1.5f * SCALE, 0.75f * SCALE),
+        float progressW = renderWidth - padding * 2.0f - 3.0f;
+        final float progressHeight = 1.5f * SCALE + 2.0f;
+        final float progressGap = 3.0f;
+        final float progressRadius = progressHeight * 0.5f;
+        if (progress <= 0.001f) {
+            ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(progressX, progressY, progressW, progressHeight, progressRadius),
+                    new Paint().setColor(track));
+        } else if (progress >= 0.999f) {
+            ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(progressX, progressY, progressW, progressHeight, progressRadius),
                     new Paint().setColor(progressColor));
+        } else {
+            float splitX = progressX + progressW * progress;
+            float halfGap = progressGap * 0.5f;
+            float playedWidth = splitX - halfGap - progressX;
+            float remainingX = splitX + halfGap;
+            float remainingWidth = progressX + progressW - remainingX;
+
+            if (playedWidth > 0.0f) {
+                ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(progressX, progressY,
+                                playedWidth, progressHeight, progressRadius),
+                        new Paint().setColor(progressColor));
+            }
+            if (remainingWidth > 0.0f) {
+                ctx.drawRoundedRect(RoundedRectangle.ofXYWHR(remainingX, progressY,
+                                remainingWidth, progressHeight, progressRadius),
+                        new Paint().setColor(track));
+            }
         }
 
         this.setWidth(renderWidth);

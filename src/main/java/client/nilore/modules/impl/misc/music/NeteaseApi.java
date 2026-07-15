@@ -20,28 +20,42 @@ public class NeteaseApi {
     private static final Pattern LRC_PATTERN = Pattern.compile("\\[(\\d{2}):(\\d{2})\\.(\\d{2,3})](.*)");
 
     public static CompletableFuture<List<SongInfo>> search(String keywords, int limit) {
-        String encoded = java.net.URLEncoder.encode(keywords, StandardCharsets.UTF_8);
-        return get("types=search&source=netease&name=" + encoded + "&count=" + limit + "&pages=1")
-                .thenApply(root -> {
-                    List<SongInfo> results = new ArrayList<>();
-                    if (root == null || !root.isJsonArray()) return results;
-                    JsonArray arr = root.getAsJsonArray();
-                    for (JsonElement el : arr) {
-                        JsonObject obj = el.getAsJsonObject();
-                        long id = obj.get("id").getAsLong();
-                        String name = obj.get("name").getAsString();
-                        JsonArray artists = obj.getAsJsonArray("artist");
-                        StringBuilder sb = new StringBuilder();
-                        for (int i = 0; i < artists.size(); i++) {
-                            if (i > 0) sb.append(", ");
-                            sb.append(artists.get(i).getAsString());
-                        }
-                        String albumName = obj.has("album") ? obj.get("album").getAsString() : "";
-                        String picId = obj.has("pic_id") ? obj.get("pic_id").getAsString() : "";
-                        results.add(new SongInfo(id, name, sb.toString(), albumName, picId, 0));
-                    }
-                    return results;
-                });
+        String normalized = keywords == null ? "" : keywords.trim().replaceAll("\\s+", " ");
+        String encoded = java.net.URLEncoder.encode(normalized, StandardCharsets.UTF_8);
+        String params = "types=search&source=netease&name=" + encoded + "&count=" + limit + "&pages=1";
+        return get(params).thenCompose(root -> {
+            List<SongInfo> results = parseSearchResults(root);
+            if (!results.isEmpty()) {
+                return CompletableFuture.completedFuture(results);
+            }
+            return get(params).thenApply(NeteaseApi::parseSearchResults);
+        });
+    }
+
+    private static List<SongInfo> parseSearchResults(JsonElement root) {
+        List<SongInfo> results = new ArrayList<>();
+        if (root == null || !root.isJsonArray()) return results;
+        JsonArray arr = root.getAsJsonArray();
+        for (JsonElement el : arr) {
+            if (!el.isJsonObject()) continue;
+            JsonObject obj = el.getAsJsonObject();
+            if (!obj.has("id") || !obj.has("name")) continue;
+            long id = obj.get("id").getAsLong();
+            String name = obj.get("name").getAsString();
+            JsonArray artists = obj.has("artist") && obj.get("artist").isJsonArray()
+                    ? obj.getAsJsonArray("artist") : new JsonArray();
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < artists.size(); i++) {
+                if (i > 0) sb.append(", ");
+                sb.append(artists.get(i).getAsString());
+            }
+            String albumName = obj.has("album") && !obj.get("album").isJsonNull()
+                    ? obj.get("album").getAsString() : "";
+            String picId = obj.has("pic_id") && !obj.get("pic_id").isJsonNull()
+                    ? obj.get("pic_id").getAsString() : "";
+            results.add(new SongInfo(id, name, sb.toString(), albumName, picId, 0));
+        }
+        return results;
     }
 
     public record SongUrlResult(String url, long size) {}
