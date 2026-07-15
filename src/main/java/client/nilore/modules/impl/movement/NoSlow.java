@@ -12,16 +12,15 @@ import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundContainerSetSlotPacket;
 import net.minecraft.network.protocol.game.ClientboundEntityEventPacket;
+import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
 import net.minecraft.network.protocol.game.ClientboundKeepAlivePacket;
 import net.minecraft.network.protocol.game.ClientboundLoginPacket;
 import net.minecraft.network.protocol.game.ClientboundPingPacket;
 import net.minecraft.network.protocol.game.ClientboundPlayerPositionPacket;
 import net.minecraft.network.protocol.game.ClientboundRespawnPacket;
-import net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket;
 import net.minecraft.network.protocol.game.ClientboundSetEquipmentPacket;
 import net.minecraft.network.protocol.game.ServerboundContainerClosePacket;
 import net.minecraft.network.protocol.game.ServerboundPlayerActionPacket;
-import net.minecraft.network.protocol.game.ServerboundPongPacket;
 import net.minecraft.network.protocol.game.ServerboundUseItemOnPacket;
 import net.minecraft.network.protocol.game.ServerboundUseItemPacket;
 import net.minecraft.tags.BlockTags;
@@ -257,11 +256,17 @@ public class NoSlow extends Module {
             Packet<?> p = event.getPacket();
 
             if (!event.isIncoming()) {
-                // Send packet handling
-                if ((step == Step.ARMED || step == Step.EATING) && p instanceof ServerboundPongPacket) {
+                // Send packet handling - NoC0F: use incoming C0F as trigger, not outgoing pong
+                if (step == Step.EATING
+                        && p instanceof ServerboundPlayerActionPacket action
+                        && action.getAction() == ServerboundPlayerActionPacket.Action.RELEASE_USE_ITEM) {
+                    release();
+                }
+            } else {
+                // NoC0F: intercept C0F (ClientboundPingPacket) as swap timing signal + queue for replay
+                if (step != Step.NONE && p instanceof ClientboundPingPacket) {
                     event.setCancelled(true);
-                    cached.offer(p);
-
+                    queueInboundPacket(p);
                     if (step == Step.ARMED && !swapInArmed) {
                         swapInArmed = true;
                         hasSwapped = true;
@@ -270,12 +275,13 @@ public class NoSlow extends Module {
                     }
                 }
 
-                if (step == Step.EATING
-                        && p instanceof ServerboundPlayerActionPacket action
-                        && action.getAction() == ServerboundPlayerActionPacket.Action.RELEASE_USE_ITEM) {
-                    release();
+                // Queue velocity for player during noslow, re-process on release
+                if (step != Step.NONE && p instanceof ClientboundSetEntityMotionPacket motion
+                        && mc.player != null && motion.getId() == mc.player.getId()) {
+                    event.setCancelled(true);
+                    queueInboundPacket(p);
                 }
-            } else {
+
                 if (step == Step.ARMED && swapInArmed && p instanceof ClientboundContainerSetSlotPacket) {
                     swapInArmed = false;
                     mc.options.keyUse.setDown(true);
@@ -429,11 +435,13 @@ public class NoSlow extends Module {
         swapInArmed = false;
         if (mc.player == null || mc.getConnection() == null) {
             cached.clear();
+            inboundQueue.clear();
             return;
         }
         while (!cached.isEmpty()) {
             mc.getConnection().send(cached.poll());
         }
+        flushInboundQueue();
         if (hasSwapped) {
             mc.getConnection().send(new ServerboundPlayerActionPacket(
                     ServerboundPlayerActionPacket.Action.SWAP_ITEM_WITH_OFFHAND, BlockPos.ZERO, Direction.DOWN));

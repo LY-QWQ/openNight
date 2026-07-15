@@ -970,8 +970,9 @@ public class MusicPlayerScreen extends Screen {
         long request = playRequestSeq.incrementAndGet();
         playlistAutoAdvance = autoAdvance;
         queueIndex = index;
+        List<SongInfo> queueSnapshot = new ArrayList<>(queue);
         playQueue.clear();
-        playQueue.addAll(new ArrayList<>(queue));
+        playQueue.addAll(queueSnapshot);
         lyricSongId = -1;
 
         NeteaseApi.getLyrics(song.id).thenAccept(lines -> {

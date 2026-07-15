@@ -38,7 +38,9 @@
       "Bash(git show *)",
       "Bash(curl *)",
       "Bash(git log *)",
-      "Bash(git rm *)"
+      "Bash(git rm *)",
+      "Bash(git *)",
+      "Bash(git commit -m '更新 NoSlow GrimV3 食物 noslow 逻辑为 NoC0F 方式 *)"
     ]
   }
 }
