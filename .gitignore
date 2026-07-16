@@ -26,7 +26,7 @@ forge*changelog.txt
 
 # Native DLL build artifacts (CMake out-of-source build + staged jar)
 native/build/
-native/zen.jar
+native/nilore.jar
 
 # Generated at build time by ext.obfuscateJar (holds the obfuscated bridge FQCN)
 native/dll/src/generated_names.h
