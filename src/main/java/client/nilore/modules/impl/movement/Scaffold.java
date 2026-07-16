@@ -281,7 +281,7 @@ public class Scaffold extends Module {
                     Vec3 placeCenter = Vec3.atCenterOf(placePos);
                     double distance = nextEyePos.distanceTo(placeCenter);
                     // 距离远（大KB）或新方块在预测玩家位置之上（掉下去了）
-                    if (distance >= this.clutchSafeDistance.getValue().doubleValue() || placePos.getY() > fallingPlayer.getY()) {
+                    if (!mc.player.onGround() && (distance >= this.clutchSafeDistance.getValue().doubleValue() || placePos.getY() > fallingPlayer.getY())) {
                         this.canBuildNow = false;
                         this.currentPlacement = rescueTarget;
                     }
@@ -561,7 +561,8 @@ if (mc.player.onGround()) {
         Vec3 eyePos = mc.player.getEyePosition();
         Rotation base = RotationUtil.rotationFromPoints(targetVec.x, targetVec.y, targetVec.z, eyePos.x, eyePos.y, eyePos.z);
 
-        if (mc.player.onGround() && this.onGroundTicks <= 2) {
+        int rotTick = this.tellyAirTicks.getValue().intValue();
+        if (this.airTicks < rotTick && this.onGroundTicks >0) {
             this.rots.setYawPitch(base.getYaw(), 75.5f);
         } else {
             this.rots.setYawPitch(base.getYaw(), base.getPitch());
@@ -571,8 +572,6 @@ if (mc.player.onGround()) {
 
     private void calculateTargetRotation() {
         if (this.currentPlacement == null || mc.player == null) return;
-
-        // 1. 基于移动方向计算基础yaw (Naven风格)
         float realYaw = mc.player.getYRot();
         if (mc.options.keyDown.isDown()) {
             realYaw += 180.0f;
