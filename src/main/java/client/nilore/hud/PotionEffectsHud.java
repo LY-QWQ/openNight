@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffectUtil;
@@ -16,6 +17,7 @@ import client.nilore.render.FontRenderer;
 import client.nilore.render.GlHelper;
 import client.nilore.render.Paint;
 import client.nilore.render.RoundedRectangle;
+import client.nilore.settings.impl.ModeSetting;
 import client.nilore.utils.math.Easings;
 import client.nilore.utils.render.ColorUtil;
 import client.nilore.event.EventTarget;
@@ -101,9 +103,12 @@ extends HudElement {
     }
 
     private final List<PotionEffectsHud.EffectEntry> effectEntryList = new ArrayList<>();
+    public final ModeSetting style = new ModeSetting("Style", "Zen", "Rhythm").withDefault("Zen");
     final FontRenderer effectNameFont = FontPresets.pingfang(16.0f);
     private final FontRenderer timerFont = FontPresets.axiformaBold(16.0f);
     final FontRenderer amplifierFont = FontPresets.axiformaBold(14.0f);
+    final FontRenderer rhythmNameFont = FontPresets.pingfang(18.0f);
+    final FontRenderer rhythmTimerFont = FontPresets.pingfang(16.0f);
     private final Paint backgroundPaint = new Paint();
     private final Paint iconBgPaint = new Paint();
     private final Paint effectIconPaint = new Paint();
@@ -161,6 +166,15 @@ extends HudElement {
         if (drawContext == null) {
             return;
         }
+        if (this.style.is("Rhythm")) {
+            this.renderRhythmStyle(drawContext, x, y);
+            return;
+        }
+        // Zen style (default)
+        this.renderZenStyle(drawContext, x, y);
+    }
+
+    private void renderZenStyle(DrawContext drawContext, float x, float y) {
         this.effectEntryList.removeIf(PotionEffectsHud.EffectEntry::isRemoveDone);
         if (this.effectEntryList.isEmpty()) {
             this.setWidth(0.0f);
@@ -224,6 +238,100 @@ extends HudElement {
         this.setHeight(Math.max(0.0f, currentY - y - spacing));
     }
 
+    private void renderRhythmStyle(DrawContext drawContext, float x, float y) {
+        this.effectEntryList.removeIf(EffectEntry::isRemoveDone);
+        if (this.effectEntryList.isEmpty()) {
+            this.setWidth(0.0f);
+            this.setHeight(0.0f);
+            return;
+        }
+
+        float spacing = 2.0f;
+        float cornerRadius = 6.0f;
+        float padding = 5.0f;
+        float iconSize = 18.0f;
+        float currentY = y;
+        float maxWidth = 0.0f;
+
+        // 单栏高度：图标(18) 与 两行文字(18f + 2gap + 16f ≈ 36) 取较高者 + padding
+        float entryHeight = Math.max(iconSize + padding * 2.0f, 36.0f + padding * 2.0f) - 16.0f;
+
+        for (EffectEntry entry : this.effectEntryList) {
+            entry.tick();
+
+            if (entry.visible) {
+                entry.visible = false;
+                entry.show(entryHeight);
+            }
+
+            float animHeight = entry.heightAnim.getValueF();
+            if (animHeight <= 0.01f) continue;
+
+            int effectColor = this.getEffectColor(entry.effectInstance.getEffect());
+
+            // 计算文字宽度
+            float nameWidth = GlHelper.getStringWidth(entry.effectName, this.rhythmNameFont);
+            float durationWidth = GlHelper.getStringWidth(entry.durationText, this.rhythmTimerFont);
+            float maxTextWidth = Math.max(nameWidth, durationWidth);
+            float totalWidth = Math.max(100.0f, iconSize + padding + maxTextWidth + padding * 2.0f);
+
+            if (totalWidth > maxWidth) maxWidth = totalWidth;
+
+            // 进度比例
+            float durationPct = entry.effectInstance.isInfiniteDuration() ? 1.0f : (float)entry.effectInstance.getDuration() / (float)entry.originalDuration;
+
+            // 背景轨道（深色空底）
+            int bgR = effectColor >> 16 & 0xFF;
+            int bgG = effectColor >> 8 & 0xFF;
+            int bgB = effectColor & 0xFF;
+            int trackColor = ColorUtil.fromARGB(
+                    (int)((float)bgR * 0.15f + 25.5f),
+                    (int)((float)bgG * 0.15f + 25.5f),
+                    (int)((float)bgB * 0.15f + 25.5f),
+                    200
+            );
+            this.backgroundPaint.setColor(trackColor);
+            drawContext.drawRoundedRect(RoundedRectangle.ofXYWHR(x, currentY, totalWidth, entryHeight, cornerRadius), this.backgroundPaint);
+
+            // 进度条填充（取药水颜色，按剩余时长比例）
+            int fillColor = ColorUtil.fromARGB(
+                    (int)((float)bgR * 0.55f + 25.5f),
+                    (int)((float)bgG * 0.55f + 25.5f),
+                    (int)((float)bgB * 0.55f + 25.5f),
+                    200
+            );
+            float fillWidth = totalWidth * durationPct;
+            if (fillWidth > 0.0f) {
+                this.effectIconPaint.setColor(fillColor);
+                drawContext.drawRoundedRect(RoundedRectangle.ofXYWHR(x, currentY, fillWidth, entryHeight, cornerRadius), this.effectIconPaint);
+            }
+
+            // 药水图标精灵
+            float iconX = x + padding;
+            float iconY = currentY + (entryHeight - iconSize) / 2.0f - 1.0f;
+            TextureAtlasSprite sprite = mc.getMobEffectTextures().get(entry.getEffect());
+            if (sprite != null) {
+                drawContext.getGuiGraphics().blit((int)iconX, (int)iconY, 0, (int)iconSize, (int)iconSize, sprite);
+            }
+
+            // 药水名称（白色，18f，上方）
+            float textX = x + padding + iconSize + padding;
+            float nameY = currentY + padding + 1.0f;
+            this.timerBarPaint.setColor(ColorUtil.fromARGB(255, 255, 255, (int)(255.0f * animHeight)));
+            GlHelper.drawTextFormatted(entry.effectName, textX, nameY, this.rhythmNameFont, this.timerBarPaint, false);
+
+            // 药水时长（白色半透明，16f，下方）
+            float durationY = nameY + 14f;
+            this.timerBarPaint.setColor(ColorUtil.fromARGB(255, 255, 255, (int)(180.0f * animHeight)));
+            GlHelper.drawTextFormatted(entry.durationText, textX, durationY, this.rhythmTimerFont, this.timerBarPaint, false);
+
+            currentY += entryHeight + spacing;
+        }
+
+        this.setWidth(maxWidth);
+        this.setHeight(Math.max(0.0f, currentY - y - spacing));
+    }
+
     private int getEffectColor(MobEffect mobEffect) {
         int color = mobEffect.getColor();
         return color != 0 ? color : 3376639;
@@ -255,3 +363,4 @@ extends HudElement {
     public void onSettings() {
     }
 }
+// Edit by P i ck bow en.

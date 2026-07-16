@@ -3,6 +3,8 @@ package client.nilore.hud;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import client.nilore.hud.target.SimpleTargetStyle;
 import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.network.protocol.Packet;
@@ -28,7 +30,7 @@ extends HudElement {
     public static final Map<String, AtomicInteger> playerHealthMap = new HashMap<>();
     private float lastHealth;
     private float healthDelta;
-    private final ModeSetting styleMode = new ModeSetting("Mode", "Round", "Moon").withDefault("Round");
+    private final ModeSetting styleMode = new ModeSetting("Mode", "Round", "Moon","Simple").withDefault("Round");
 
     public TargetHud() {
         super("TargetHUD");
@@ -97,7 +99,10 @@ extends HudElement {
             } else if (targetStyle instanceof MoonTargetStyle) {
                 this.setWidth(200.0f);
                 this.setHeight(40.0f);
-            } else {
+            } else if (targetStyle instanceof SimpleTargetStyle){
+                this.setWidth(120.0f);
+                this.setHeight(38.0f);
+            }else {
                 this.setWidth(150.0f);
                 this.setHeight(36.0f);
             }

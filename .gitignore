@@ -31,3 +31,6 @@ native/zen.jar
 # Generated at build time by ext.obfuscateJar (holds the obfuscated bridge FQCN)
 native/dll/src/generated_names.h
 changes/
+
+# Claude worktrees
+.claude/worktrees/

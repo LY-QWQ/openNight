@@ -1,6 +1,9 @@
 package client.nilore.modules.impl.movement;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.PoseStack;
+import java.awt.Color;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import net.minecraft.core.BlockPos;
@@ -25,6 +28,7 @@ import client.nilore.event.impl.MotionEvent;
 import client.nilore.event.impl.PacketEvent;
 import client.nilore.event.impl.PreMotionEvent;
 import client.nilore.event.impl.Render2DEvent;
+import client.nilore.event.impl.RenderEvent;
 import client.nilore.event.impl.TickEvent;
 import client.nilore.event.impl.UpdateHeldItemEvent;
 import client.nilore.modules.Category;
@@ -45,6 +49,7 @@ import client.nilore.utils.game.RayTraceUtil;
 import client.nilore.utils.game.RotationUtil;
 import client.nilore.utils.misc.ChatUtil;
 import client.nilore.utils.misc.PacketUtil;
+import client.nilore.utils.render.RenderUtil;
 
 import client.nilore.utils.rotation.Rotation;
 import client.nilore.utils.rotation.RotationHandler;
@@ -59,6 +64,8 @@ public class Scaffold extends Module {
     public final BooleanSetting eagle = new BooleanSetting("Eagle", true, () -> this.mode.is("Normal"));
     public final BooleanSetting renderItemSpoof = new BooleanSetting("Render Item Spoof", true);
     public final BooleanSetting clutch = new BooleanSetting("Clutch", true);
+    public final NumberSetting clutchSafeDistance = new NumberSetting("Clutch Safe Distance", 4.5, 1.0, 5.0, 0.25, this.clutch::getValue);
+    public final BooleanSetting mark = new BooleanSetting("Mark", true);
     public final ModeSetting swingMode = new ModeSetting("Swing", "Both", "Server").withDefault("Both");
     public final BooleanSetting blockCounter = new BooleanSetting("Block Counter", true);
     public final ModeSetting blockCounterStyle = new ModeSetting("Block Counter Style", "Amunix", "Modern").withDefault("Modern");
@@ -83,11 +90,13 @@ public class Scaffold extends Module {
     private int slotTicks;
     private PlacementTarget currentPlacement;
     private int airTicks = 0;
+    private int onGroundTicks = 0;
     private int rotationDelay = 0;
     private final CopyOnWriteArrayList<CopyOnWriteArrayList<Packet<?>>> packetBatches = new CopyOnWriteArrayList<>();
     private boolean canBuildNow;
     private BlockPos lastC05Position;
     private int tellyPlaceDelayTimer;
+    private BlockPos lastPlacePos;
 
     private static final FontRenderer shelfLabelFont = FontPresets.axiformaBold(12);
     private static final FontRenderer shelfBpsFont = FontPresets.axiformaBold(13);
@@ -115,9 +124,11 @@ public class Scaffold extends Module {
             this.rots.setYawPitch(mc.player.getYRot() - 180.0f, mc.player.getXRot());
             this.lastRots.setYawPitch(mc.player.yRotO - 180.0f, mc.player.xRotO);
             this.currentPlacement = null;
+            this.lastPlacePos = null;
             this.targetYLevel = 10000;
             this.velocityDelay = 0;
             this.canBuildNow = true;
+            this.rotationDelay = 0;
             this.lastC05Position = null;
             this.packetBatches.clear();
             this.packetBatches.add(new CopyOnWriteArrayList<>());
@@ -144,6 +155,7 @@ public class Scaffold extends Module {
                 this.slotActive = false;
             }
             this.canBuildNow = true;
+            this.rotationDelay = 0;
             this.lastC05Position = null;
             ClientBase.delayPackets.clear();
         }
@@ -191,8 +203,10 @@ public class Scaffold extends Module {
         if (event.isPost() && mc.player != null) {
             if (mc.player.onGround()) {
                 this.airTicks = 0;
+                this.onGroundTicks++;
             } else {
                 this.airTicks++;
+                this.onGroundTicks = 0;
             }
         }
     }
@@ -253,34 +267,36 @@ public class Scaffold extends Module {
                 Vec3 nextEyePos = fallingPlayer.getEyePosition();
                 fallingPlayer.calculate(this.predictTicks.getValue().intValue());
 
-                Vec3 blockCenter = Vec3.atCenterOf(this.currentPlacement.position);
-                double distance = nextEyePos.distanceTo(blockCenter);
-                if (distance >= 5.0 || this.currentPlacement.position.getY() > fallingPlayer.getY()) {
-                    this.canBuildNow = false;
+                // 独立选取玩家下方的放置目标（不依赖 isAbovePlaceable 的 same-y 搜索）
+                BlockPos rescuePos = new BlockPos(
+                        (int) Math.floor(mc.player.getX()),
+                        mc.player.getBlockY() - 1,
+                        (int) Math.floor(mc.player.getZ())
+                );
+                PlacementTarget rescueTarget = this.findRescuePlacement(rescuePos);
 
-                    AABB box = new AABB(
-                            this.currentPlacement.position.getX(),
-                            this.currentPlacement.position.getY() - 1,
-                            this.currentPlacement.position.getZ(),
-                            this.currentPlacement.position.getX() + 1,
-                            this.currentPlacement.position.getY() + 1,
-                            this.currentPlacement.position.getZ() + 1
-                    );
-                    if (this.currentPlacement.position.getY() > fallingPlayer.getY()
-                            && !box.contains(mc.player.position())) {
-                        this.targetYLevel = mc.player.getBlockY() - 1;
+                if (rescueTarget != null) {
+                    // 要放置的新方块位置 = 点击实心方块的反方向
+                    BlockPos placePos = rescueTarget.position.relative(rescueTarget.facing);
+                    Vec3 placeCenter = Vec3.atCenterOf(placePos);
+                    double distance = nextEyePos.distanceTo(placeCenter);
+                    // 距离远（大KB）或新方块在预测玩家位置之上（掉下去了）
+                    if (distance >= this.clutchSafeDistance.getValue().doubleValue() || placePos.getY() > fallingPlayer.getY()) {
+                        this.canBuildNow = false;
+                        this.currentPlacement = rescueTarget;
                     }
                 }
+
             }
         }
-        if (mc.player.onGround()) {
+if (mc.player.onGround()) {
             this.canBuildNow = true;
         }
         if (this.currentPlacement == null) {
             ClientBase.delayPackets.clear();
         } else if (this.clutch.getValue() && (!this.canBuildNow || this.velocityDelay > 0) && this.rotationDelay <= 8) {
             if (print_log.getValue()) ChatUtil.print(true, "§6Skipped 1Tick§6.");
-            boolean useC06 = this.onTickRot.getValue() || !this.canBuildNow;
+            boolean useC06 = this.onTickRot.getValue() || (this.velocityDelay > 0 && this.canBuildNow);
             if (useC06) {
                 // C06 模式：不转头，让 onPreMotion 中的 c06Place 处理放置
                 this.rots.setYawPitch(mc.player.getYRot(), mc.player.getXRot());
@@ -342,6 +358,10 @@ public class Scaffold extends Module {
                     this.lastRots.setYawPitch(this.rots.getYaw(), this.rots.getPitch());
                     return;
                 }
+                // Hypixel UpTelly 平滑转头覆盖
+                if (!this.onTickRot.getValue()) {
+                    this.calculateTellyRotation();
+                }
             } else if (this.mode.is("Keep Y")) {
                 mc.options.keyJump.setDown(MovementUtil.isMoving() || jumpHeld);
             } else {
@@ -370,7 +390,18 @@ public class Scaffold extends Module {
         if (this.mode.is("Telly Bridge") && this.tellyPlaceDelay.getValue().intValue() > 0 && this.tellyPlaceDelayTimer < this.tellyPlaceDelay.getValue().intValue()) return;
         boolean canRayTrace = RayTraceUtil.canRayTrace(RotationHandler.targetRotation, this.currentPlacement.facing, this.currentPlacement.position, true);
         if (!this.canBuildNow && !this.isPlacementReachable(this.currentPlacement)) return;
-        if (this.rotationDelay <= 0 && !this.mode.is("Telly Bridge") && !canRayTrace) return;
+
+        if (canRayTrace) {
+            this.doSnap();
+            return;
+        }
+
+        if (this.rotationDelay <= 0 && !this.mode.is("Telly Bridge")) {
+            if (this.isPlacementReachable(this.currentPlacement)) {
+                this.c06Place();
+            }
+            return;
+        }
 
         this.doSnap();
     }
@@ -521,6 +552,21 @@ public class Scaffold extends Module {
         Vec3 toBlock = hitPoint.subtract(eye);
         return toBlock.lengthSqr() <= 20.25
                 && toBlock.normalize().dot(Vec3.atLowerCornerOf(target.facing.getNormal().multiply(-1)).normalize()) >= 0.0;
+    }
+
+    private void calculateTellyRotation() {
+        if (this.currentPlacement == null || mc.player == null) return;
+
+        Vec3 targetVec = getFaceCenter(this.currentPlacement.position, this.currentPlacement.facing);
+        Vec3 eyePos = mc.player.getEyePosition();
+        Rotation base = RotationUtil.rotationFromPoints(targetVec.x, targetVec.y, targetVec.z, eyePos.x, eyePos.y, eyePos.z);
+
+        if (mc.player.onGround() && this.onGroundTicks <= 2) {
+            this.rots.setYawPitch(base.getYaw(), 75.5f);
+        } else {
+            this.rots.setYawPitch(base.getYaw(), base.getPitch());
+        }
+        RotationHandler.setTargetRotation(this.rots);
     }
 
     private void calculateTargetRotation() {
@@ -757,6 +803,7 @@ public class Scaffold extends Module {
         InteractionResult result = mc.gameMode.useItemOn(mc.player, InteractionHand.MAIN_HAND, hit);
 
         if (result == InteractionResult.SUCCESS) {
+            this.lastPlacePos = this.currentPlacement.position.relative(this.currentPlacement.facing);
             if (!this.swingMode.is("Server")) {
                 mc.player.swing(InteractionHand.MAIN_HAND);
             }
@@ -800,8 +847,40 @@ public class Scaffold extends Module {
         BlockHitResult hit = new BlockHitResult(getHitVec(this.currentPlacement.position, facing), facing, this.currentPlacement.position, false);
         InteractionResult result = mc.gameMode.useItemOn(mc.player, InteractionHand.MAIN_HAND, hit);
         if (result == InteractionResult.SUCCESS && !this.swingMode.is("Server")) {
+            this.lastPlacePos = this.currentPlacement.position.relative(this.currentPlacement.facing);
             mc.player.swing(InteractionHand.MAIN_HAND);
         }
+    }
+
+    @EventTarget
+    public void onRender3D(RenderEvent event) {
+        if (mc.player == null || mc.level == null) return;
+        if (!this.mark.getValue() || this.lastPlacePos == null) return;
+
+        PoseStack poseStack = event.poseStack();
+        Vec3 camera = mc.gameRenderer.getMainCamera().getPosition();
+        AABB box = new AABB(this.lastPlacePos);
+
+        poseStack.pushPose();
+        poseStack.translate(-camera.x, -camera.y, -camera.z);
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        RenderSystem.disableDepthTest();
+        RenderSystem.depthMask(false);
+
+        // 填充面 (白色半透明)
+        RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, 0.27f);
+        RenderUtil.drawSolidBox(box, poseStack);
+
+        // 边框线 (白色较高不透明)
+        RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, 0.59f);
+        RenderUtil.drawOutlineBox(box, poseStack);
+
+        RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, 1.0f);
+        RenderSystem.disableBlend();
+        RenderSystem.enableDepthTest();
+        RenderSystem.depthMask(true);
+        poseStack.popPose();
     }
 
     public static boolean isOnBlockEdge(float inflate) {
@@ -845,6 +924,17 @@ public class Scaffold extends Module {
         }
         if (rotation == null) return false;
         return RayTraceUtil.canRayTrace(rotation, this.currentPlacement.facing, this.currentPlacement.position, true);
+    }
+
+    private PlacementTarget findRescuePlacement(BlockPos placePos) {
+        if (mc.level == null) return null;
+        for (Direction direction : Direction.values()) {
+            BlockPos solidBlock = placePos.relative(direction);
+            if (!mc.level.getBlockState(solidBlock).canBeReplaced()) {
+                return new PlacementTarget(solidBlock, direction.getOpposite());
+            }
+        }
+        return null;
     }
 
     private record PlacementTarget(BlockPos position, Direction facing) {

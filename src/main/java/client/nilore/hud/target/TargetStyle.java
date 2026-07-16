@@ -4,8 +4,6 @@ import java.util.HashMap;
 import net.minecraft.world.entity.LivingEntity;
 import client.nilore.ClientBase;
 import client.nilore.event.impl.Render2DEvent;
-import client.nilore.hud.target.MoonTargetStyle;
-import client.nilore.hud.target.RoundTargetStyle;
 import client.nilore.utils.animation.SmoothAnimationTimer;
 
 public abstract class TargetStyle
@@ -29,6 +27,7 @@ extends ClientBase {
         }
         registry.put(RoundTargetStyle.class, new RoundTargetStyle());
         registry.put(MoonTargetStyle.class, new MoonTargetStyle());
+        registry.put(SimpleTargetStyle.class, new SimpleTargetStyle());
     }
 
     public static TargetStyle getByName(String string) {
