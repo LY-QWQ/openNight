@@ -35,7 +35,6 @@ import client.nilore.modules.impl.movement.NoSlow;
 import client.nilore.modules.impl.movement.FastWeb;
 import client.nilore.modules.impl.movement.FireballBlink;
 import client.nilore.modules.impl.movement.Fly;
-import client.nilore.modules.impl.movement.GuiMove;
 import client.nilore.modules.impl.movement.HighJump;
 import client.nilore.modules.impl.movement.NoDelay;
 import client.nilore.modules.impl.movement.NoPush;
@@ -100,7 +99,6 @@ public class ModuleManager extends ClientBase {
         this.register(new FastWeb());
         this.register(new FireballBlink());
         this.register(new Fly());
-        this.register(new GuiMove());
         this.register(new HighJump());
         this.register(new NoDelay());
         this.register(new NoPush());

@@ -560,7 +560,7 @@ extends Module {
         if (item instanceof FishingRodItem && (count = ItemUtil.countItem(Items.FISHING_ROD)) > 0) {
             return false;
         }
-        if (item instanceof BlockItem && item != Items.COBWEB) {
+        if (item instanceof BlockItem && item != Items.COBWEB && item != Items.TNT) {
             count = InventoryManager.getMaxBlockSize();
             if (this.totalBlockCount + itemStack.getCount() > count) {
                 return false;
@@ -747,7 +747,7 @@ extends Module {
         if (itemStack.getItem() == Items.GOLDEN_APPLE || itemStack.getItem() == Items.ENCHANTED_GOLDEN_APPLE) {
             return true;
         }
-        if (itemStack.getItem() == Items.COBWEB) {
+        if (itemStack.getItem() == Items.COBWEB || itemStack.getItem() == Items.TNT) {
             return true;
         }
         if (itemStack.getItem() == Items.COMPASS) {

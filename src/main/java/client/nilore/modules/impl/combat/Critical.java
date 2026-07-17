@@ -1,52 +1,92 @@
 package client.nilore.modules.impl.combat;
 
-import net.minecraft.world.entity.Entity;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.LivingEntity;
-import client.nilore.event.EventTarget;
+import client.nilore.event.impl.EntityRemoveEvent;
 import client.nilore.event.impl.SprintEvent;
+import client.nilore.event.impl.TickEvent;
 import client.nilore.modules.Category;
 import client.nilore.modules.Module;
+import client.nilore.event.EventTarget;
 import client.nilore.settings.impl.BooleanSetting;
+import client.nilore.settings.impl.ModeSetting;
 import client.nilore.settings.impl.NumberSetting;
 
-public class Critical extends Module {
+public class Critical
+        extends Module {
     public static Critical INSTANCE;
 
-    public final BooleanSetting controlSprintKey = new BooleanSetting("Control Sprint Key", true);
-    public final NumberSetting hurtTime = new NumberSetting("Hurt Time", 2, 0, 2, 1);
+    public final ModeSetting mode = new ModeSetting("Mode", "Vanilla", "Grim").withDefault("Vanilla");
+    public final NumberSetting range = new NumberSetting("Range", 3.0, 1.0, 3.2, 0.1);
+    public final BooleanSetting autoJump = new BooleanSetting("Auto Jump", true);
 
     public Critical() {
         super("Critical", Category.COMBAT);
         INSTANCE = this;
     }
+    @Override
+    public void onEnable() {
+        super.onEnable();
+    }
+
+    @Override
+    public void onDisable() {
+        super.onDisable();
+    }
+
+
+    @EventTarget
+    public void onTick(TickEvent tickEvent) {
+        if (mc.player == null) {
+            return;
+        }
+        if (!autoJump.getValue()) {
+            return;
+        }
+        if (!KillAura.INSTANCE.isEnabled() || KillAura.INSTANCE.getTarget() == null) {
+            return;
+        }
+        if (mc.player.onGround()) {
+            mc.player.jumpFromGround();
+        }
+    }
 
     @EventTarget
     public void onSprint(SprintEvent event) {
-        if (mc.player == null
-                || event == null
-                || !event.isSprint()
-                || event.getSource() != SprintEvent.Source.INPUT
-                || mc.player.getDeltaMovement().y() > -0.08
-                || mc.player.onGround()
-                || mc.player.isInWaterRainOrBubble()
-                || mc.player.isInLava()
-                || mc.player.onClimbable()
-                || KillAura.INSTANCE == null
-                || !KillAura.INSTANCE.isEnabled()) {
+        if (mc.player == null || !mode.is("Grim")) {
+            return;
+        }
+        if (canCrit()) {
+            mc.player.setSprinting(false);
+        }
+    }
+
+    @EventTarget
+    public void onEntityRemove(EntityRemoveEvent entityRemoveEvent) {
+        if (mc.player == null || !mode.is("Vanilla")) {
             return;
         }
 
-        Entity target = KillAura.INSTANCE.getTarget();
-        if (!(target instanceof LivingEntity livingTarget)
-                || livingTarget.hurtTime < 0
-                || livingTarget.hurtTime > hurtTime.getValue().intValue()) {
-            return;
+        // ===== Vanilla mode (original behaviour) =====
+        boolean canCrit = mc.player.fallDistance > 0.0f && !mc.player.onGround() && !mc.player.onClimbable() && !mc.player.isInWater() && !mc.player.hasEffect(MobEffects.BLINDNESS) && !mc.player.isPassenger() && entityRemoveEvent.entity() instanceof LivingEntity;
+        boolean wasSprinting = mc.player.isSprinting();
+        if (canCrit && !entityRemoveEvent.dead()) {
+            mc.player.resetAttackStrengthTicker();
         }
-
-        if (controlSprintKey.getValue()) {
+        if (canCrit && wasSprinting && entityRemoveEvent.dead()) {
             mc.options.keySprint.setDown(false);
-        } else {
-            event.setSprint(false);
         }
+    }
+
+    private boolean canCrit() {
+        if (KillAura.INSTANCE == null || !KillAura.INSTANCE.isEnabled() || KillAura.INSTANCE.getTarget() == null) {
+            return false;
+        }
+        return mc.player.fallDistance > 0.0f
+                && !mc.player.onGround()
+                && !mc.player.onClimbable()
+                && !mc.player.isInWater()
+                && !mc.player.hasEffect(MobEffects.BLINDNESS)
+                && !mc.player.isPassenger();
     }
 }
