@@ -19,22 +19,11 @@ extends Module {
     }
 
     @EventTarget
-    public void onMotion(MotionEvent e) {
-        if (e.pre) {
-            if (InventoryManager.INSTANCE != null && InventoryManager.INSTANCE.isSuppressingSprint()) {
-                mc.options.keySprint.setDown(false);
-                if (mc.player != null) {
-                    mc.player.setSprinting(false);
-                }
-                return;
-            }
-
-            mc.options.keySprint.setDown(true);
-            mc.options.toggleSprint().set(false);
+    public void onRotation(RotationEvent rotationEvent) {
+        if (InventoryManager.isPerformingAction) {
+            return;
         }
-    }
-    @Override
-    public void onDisable() {
-        mc.options.keySprint.setDown(false);
+        mc.options.toggleSprint().set(false);
+        KeyMapping.set(mc.options.keySprint.getKey(), true);
     }
 }
