@@ -56,8 +56,8 @@ import client.opennight.utils.misc.Assets;
 public class NightClient extends ClientBase {
     @Getter
     public static NightClient instance;
-    public static final String CLIENT_NAME = "Night";
-    public static final String CLIENT_NAME_UPPER = "NIGHT";
+    public static final String CLIENT_NAME = "OpenNIGHT";
+    public static final String CLIENT_NAME_UPPER = "OPENNIGHT";
     public static final String VERSION = "1.0";
     public static float serverTickRate;
     public static boolean isReady;

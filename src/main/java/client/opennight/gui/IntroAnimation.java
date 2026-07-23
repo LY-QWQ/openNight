@@ -42,7 +42,7 @@ extends ClientBase {
         float centerX = screenWidth / 2.0f;
         float centerY = screenHeight / 2.0f;
         long zAppearStart = 1100L;
-        long fadeOutStart = zAppearStart + 900L + 700L + 500L + 300L + 500L + 1300L;
+        long fadeOutStart = zAppearStart + 1200L + 800L + 1200L;
         if (elapsed <= 800L) {
             float fadeIn = IntroAnimation.easeOutCubic(IntroAnimation.clamp01((float)elapsed / 800.0f));
             bgAlpha = 0.6f * fadeIn;
@@ -57,56 +57,45 @@ extends ClientBase {
         }
         Paint paint = GlHelper.toPaint(new Color(0, 0, 0, (int)(bgAlpha * 255.0f)));
         GlHelper.drawRect(0.0f, 0.0f, screenWidth, screenHeight, paint);
-        float zScale = 1.0f;
-        float zAlpha = 0.0f;
+
+        float textAlpha = 0.0f;
+        float textScale = 1.0f;
         if (elapsed >= zAppearStart) {
             long sinceZ = elapsed - zAppearStart;
-            if (sinceZ <= 900L) {
-                float zProgress = IntroAnimation.easeOutCubic(IntroAnimation.clamp01((float)sinceZ / 900.0f));
-                zScale = IntroAnimation.lerp(2.0f, 1.0f, zProgress);
-                zAlpha = zProgress;
+            if (sinceZ <= 1200L) {
+                float tp = IntroAnimation.easeOutCubic(IntroAnimation.clamp01((float)sinceZ / 1200.0f));
+                textScale = IntroAnimation.lerp(1.5f, 1.0f, tp);
+                textAlpha = tp;
             } else {
-                zScale = 1.0f;
-                zAlpha = 1.0f;
+                textScale = 1.0f;
+                textAlpha = 1.0f;
             }
         }
-        float slideProgress = 0.0f;
-        long slideStart = zAppearStart + 900L + 700L;
-        if (elapsed > slideStart && elapsed <= slideStart + 500L) {
-            slideProgress = IntroAnimation.easeOutCubic((float)(elapsed - slideStart) / 500.0f);
-        } else if (elapsed > slideStart + 500L) {
-            slideProgress = 1.0f;
-        }
-        FontRenderer scaledZFont = FontPresets.axiformaBold(64.0f * zScale);
-        FontRenderer baseFont = FontPresets.axiformaBold(64.0f);
-        float zWidth = GlHelper.getStringWidth("N", scaledZFont);
-        float enWidth = GlHelper.getStringWidth(NightClient.CLIENT_NAME_UPPER.substring(1), baseFont);
-        float zCenterX = centerX - zWidth / 2.0f;
-        float zSlideX = centerX - (zWidth + 0.0f + enWidth) / 2.0f;
-        float zRenderX = IntroAnimation.lerp(zCenterX, zSlideX, slideProgress);
-        float zRenderY = centerY - scaledZFont.getMetrics().capHeight() / 2.0f;
-        float enAlpha = 0.0f;
-        float enOffsetY = 12.0f;
-        long enStart = slideStart + 500L + 300L;
-        if (elapsed > enStart && elapsed <= enStart + 500L) {
-            enAlpha = fadeFactor = IntroAnimation.easeOutCubic((float)(elapsed - enStart) / 500.0f);
-            enOffsetY = (1.0f - fadeFactor) * 12.0f;
-        } else if (elapsed > enStart + 500L) {
-            enAlpha = 1.0f;
-            enOffsetY = 0.0f;
-        }
+
         fadeFactor = 1.0f;
         if (elapsed > fadeOutStart) {
             fadeFactor = 1.0f - IntroAnimation.clamp01((float)(elapsed - fadeOutStart) / 700.0f);
         }
-        int zColor = new Color(1.0f, 1.0f, 1.0f, IntroAnimation.clamp01(zAlpha * fadeFactor)).getRGB();
-        GlHelper.drawText("N", zRenderX, zRenderY, scaledZFont, zColor);
-        if (enAlpha > 0.0f) {
-            float enX = zRenderX + zWidth + 0.0f;
-            float enY = centerY - baseFont.getMetrics().capHeight() / 2.0f + enOffsetY;
-            int enColor = new Color(1.0f, 1.0f, 1.0f, IntroAnimation.clamp01(enAlpha * fadeFactor)).getRGB();
-            GlHelper.drawText(NightClient.CLIENT_NAME_UPPER.substring(1), enX, enY, baseFont, enColor);
+
+        String name = NightClient.CLIENT_NAME_UPPER;
+        FontRenderer glowFont = FontPresets.axiformaBold(68.0f * textScale);
+        FontRenderer mainFont = FontPresets.axiformaBold(64.0f * textScale);
+        float totalW = GlHelper.getStringWidth(name, mainFont);
+        float renderX = centerX - totalW / 2.0f;
+        float renderY = centerY - mainFont.getMetrics().capHeight() / 2.0f;
+
+        // Outer glow layer
+        if (textAlpha > 0.01f) {
+            float glowAlpha = Math.min(textAlpha * 0.35f, 0.35f);
+            int glowColor = new Color(0.5f, 0.7f, 1.0f, IntroAnimation.clamp01(glowAlpha * fadeFactor)).getRGB();
+            GlHelper.drawText(name, renderX - 3.0f, renderY, glowFont, glowColor);
+            GlHelper.drawText(name, renderX + 3.0f, renderY, glowFont, glowColor);
+            GlHelper.drawText(name, renderX, renderY - 2.0f, glowFont, glowColor);
         }
+
+        // Main text
+        int textColor = new Color(1.0f, 1.0f, 1.0f, IntroAnimation.clamp01(textAlpha * fadeFactor)).getRGB();
+        GlHelper.drawText(name, renderX, renderY, mainFont, textColor);
     }
 
     private void finish() {
