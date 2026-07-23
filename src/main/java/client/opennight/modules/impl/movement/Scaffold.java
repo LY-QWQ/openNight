@@ -771,9 +771,13 @@ public class Scaffold extends Module {
                 mc.player.onGround()
         ));
 
-        // 放置方块
-        BlockHitResult hit = new BlockHitResult(
-                getHitVec(this.currentPlacement.position, facing), facing,
+        // 放置方块（hit vec 微抖，防 Vulcan 精准放置检测）
+        Vec3 baseHit = getHitVec(this.currentPlacement.position, facing);
+        Vec3 jitHit = baseHit.add(
+                (Math.random() - 0.5) * 0.003,
+                (Math.random() - 0.5) * 0.003,
+                (Math.random() - 0.5) * 0.003);
+        BlockHitResult hit = new BlockHitResult(jitHit, facing,
                 this.currentPlacement.position, false);
         InteractionResult result = mc.gameMode.useItemOn(mc.player, InteractionHand.MAIN_HAND, hit);
 
@@ -818,7 +822,12 @@ public class Scaffold extends Module {
         }
         if (!this.shouldBuild()) return;
         if (!this.isAimingAtPlacementFace()) return;
-        BlockHitResult hit = new BlockHitResult(getHitVec(this.currentPlacement.position, facing), facing, this.currentPlacement.position, false);
+        Vec3 baseHit2 = getHitVec(this.currentPlacement.position, facing);
+        Vec3 jitHit2 = baseHit2.add(
+                (Math.random() - 0.5) * 0.003,
+                (Math.random() - 0.5) * 0.003,
+                (Math.random() - 0.5) * 0.003);
+        BlockHitResult hit = new BlockHitResult(jitHit2, facing, this.currentPlacement.position, false);
         InteractionResult result = mc.gameMode.useItemOn(mc.player, InteractionHand.MAIN_HAND, hit);
         if (result == InteractionResult.SUCCESS && !this.swingMode.is("Server")) {
             mc.player.swing(InteractionHand.MAIN_HAND);
