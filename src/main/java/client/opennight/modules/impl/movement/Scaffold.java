@@ -744,10 +744,10 @@ public class Scaffold extends Module {
         if (!BlockUtil.isPlaceable(mc.player.getMainHandItem())) return;
 
         // 放置延迟随机化
-        if (this.placeDelay.getValue() > 0) {
+        if (this.placeDelay.getValue().intValue() > 0) {
             long now = System.currentTimeMillis();
             if (this.lastPlacementTime > 0) {
-                long actualDelay = (long)(this.placeDelay.getValue() + 40 + Math.random() * 80);
+                long actualDelay = (long)(this.placeDelay.getValue().intValue() + 40 + Math.random() * 80);
                 if (now - this.lastPlacementTime < actualDelay) return;
             }
             this.lastPlacementTime = now;
