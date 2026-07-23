@@ -101,7 +101,7 @@ public class ESP extends Module {
 
     private boolean isInRange(Entity entity) {
         double distSq = mc.player.distanceToSqr(entity);
-        return distSq < 10000.0;
+        return distSq < 2500.0;
     }
 
     @EventTarget

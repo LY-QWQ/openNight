@@ -42,8 +42,8 @@ public final class BlurRenderer {
         float paddedWidth = width + 2.0f * padding;
         float paddedHeight = height + 2.0f * padding;
         float guiScale = (float)Minecraft.getInstance().getWindow().getGuiScale();
-        int fboWidth = Math.max(4, Math.min(2048, (int)Math.ceil(paddedWidth * guiScale)));
-        int fboHeight = Math.max(4, Math.min(2048, (int)Math.ceil(paddedHeight * guiScale)));
+        int fboWidth = Math.max(4, Math.min(1024, (int)Math.ceil(paddedWidth * guiScale * 0.75f)));
+        int fboHeight = Math.max(4, Math.min(1024, (int)Math.ceil(paddedHeight * guiScale * 0.75f)));
         fboA.resize(fboWidth, fboHeight);
         fboB.resize(fboWidth, fboHeight);
         int prevFbo = GL11.glGetInteger(36006);
