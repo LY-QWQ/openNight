@@ -21,7 +21,7 @@ public class GameTimer extends Module {
 
     private static final float[] MICRO_PULSE_SPEEDS = {1.0f, 1.05f, 1.0f, 1.03f};
 
-    public Timer() {
+    public GameTimer() {
         super("GameTimer", Category.MOVEMENT);
     }
 
