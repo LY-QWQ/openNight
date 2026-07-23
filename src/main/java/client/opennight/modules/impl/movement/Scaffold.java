@@ -71,10 +71,8 @@ public class Scaffold extends Module {
     public final NumberSetting predictTicks = new NumberSetting("Predict Ticks", 2, 1, 3, 1);
     public final ModeSetting switchMode = new ModeSetting("Switch Mode", "Normal", "Hotbar", "Full").withDefault("Hotbar");
     public final BooleanSetting print_log = new BooleanSetting("Log",false);
-    public final NumberSetting placeDelay = new NumberSetting("Place Delay", 80, 0, 300, 10);
-    public final BooleanSetting jitterPos = new BooleanSetting("Jitter Pos", true);
-    public final BooleanSetting variedSneak = new BooleanSetting("Varied Sneak", true);
-    public final BooleanSetting rotJitter = new BooleanSetting("Rot Jitter", true);
+    public final NumberSetting placeDelay = new NumberSetting("Place Delay", 0, 0, 300, 10);
+
 
     public Rotation rots = new Rotation();
     public Rotation lastRots = new Rotation();
@@ -94,9 +92,7 @@ public class Scaffold extends Module {
     private BlockPos lastC05Position;
     private int tellyPlaceDelayTimer;
     private long lastPlacementTime;
-    private int sneakBlockCount;
-    private int sneakPauseTicks;
-    private int sneakNextPauseAt;
+
 
     private static final FontRenderer shelfLabelFont = FontPresets.axiformaBold(12);
     private static final FontRenderer shelfBpsFont = FontPresets.axiformaBold(13);
@@ -131,9 +127,6 @@ public class Scaffold extends Module {
             this.packetBatches.clear();
             this.packetBatches.add(new CopyOnWriteArrayList<>());
             this.lastPlacementTime = 0;
-            this.sneakBlockCount = 0;
-            this.sneakPauseTicks = 0;
-            this.sneakNextPauseAt = 8 + (int)(Math.random() * 8);
         }
         this.shelfHudInitialized = mc.player != null;
         this.shelfInitialBlocks = this.shelfHudInitialized ? this.getBlockSlot() : 0;
@@ -743,14 +736,18 @@ public class Scaffold extends Module {
 
         if (!BlockUtil.isPlaceable(mc.player.getMainHandItem())) return;
 
-        // 放置延迟随机化
+        // 放置延迟随机化 — 只在安全时生效，脚下没方块立即放
         if (this.placeDelay.getValue().intValue() > 0) {
-            long now = System.currentTimeMillis();
-            if (this.lastPlacementTime > 0) {
-                long actualDelay = (long)(this.placeDelay.getValue().intValue() + 40 + Math.random() * 80);
-                if (now - this.lastPlacementTime < actualDelay) return;
+            BlockPos below = mc.player.blockPosition().below();
+            boolean safe = mc.level.getBlockState(below).isSolid();
+            if (safe) {
+                long now = System.currentTimeMillis();
+                if (this.lastPlacementTime > 0) {
+                    long actualDelay = (long)(this.placeDelay.getValue().intValue() + 40 + Math.random() * 80);
+                    if (now - this.lastPlacementTime < actualDelay) return;
+                }
+                this.lastPlacementTime = now;
             }
-            this.lastPlacementTime = now;
         }
 
         // 计算朝向放置面的旋转
