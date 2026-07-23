@@ -1,4 +1,4 @@
-# Open Nilore
+# OpenNIGHT
 
 > ⚠️ 本仓库**仅供学习与研究目的发布** —— 用于研究客户端侧游戏改造、ASM 字节码补丁和混淆/反混淆技术。在你不拥有的服务器上使用作弊客户端违反绝大多数服务器规则，请自行承担后果。
 
@@ -9,7 +9,7 @@
 
 ### 注入方式
 
-Open Nilore 支持两种注入方式：
+OpenNIGHT 支持两种注入方式：
 
 **Java Agent 注入：**
 ```
@@ -18,7 +18,7 @@ JVM 启动参数 -javaagent → PatchAgent.premain() → 注册 ClassFileTransfo
 
 **DLL 注入：**
 ```
-OpenNiloreLoader.exe → 注入 OpenZen.dll 到 javaw.exe → JNI 调用 Agent_OnAttach → Bootstrap.init() → SRG mapping → 注册所有 patch
+OpenNIGHTLoader.exe → 注入 OpenNIGHT.dll 到 javaw.exe → JNI 调用 Agent_OnAttach → Bootstrap.init() → SRG mapping → 注册所有 patch
 ```
 
 ### ASM Patching 框架
@@ -43,7 +43,7 @@ OpenNiloreLoader.exe → 注入 OpenZen.dll 到 javaw.exe → JNI 调用 Agent_O
 
 ### 事件系统
 
-自定义事件总线 (`client.nilore.event`)，支持优先级排序和事件取消。模块启用时自动注册 `@EventTarget` 方法，禁用时自动注销。
+自定义事件总线 (`client.opennight.event`)，支持优先级排序和事件取消。模块启用时自动注册 `@EventTarget` 方法，禁用时自动注销。
 
 ```java
 @EventTarget(priority = EventPriority.HIGH)
@@ -69,7 +69,7 @@ public void onPacket(PacketEvent event) {
 
 **DLL (`native/dll/`)：**
 - 使用 JNI 调用 `Agent_OnAttach` 注入 Java Agent
-- 嵌入 `nilore.jar` 作为资源段，运行时提取到临时目录加载
+- 嵌入 `opennight.jar` 作为资源段，运行时提取到临时目录加载
 
 **Loader (`native/loader/`)：**
 - Qt6 GUI 应用（静态链接，零运行时依赖）
@@ -79,13 +79,13 @@ public void onPacket(PacketEvent event) {
 
 ## 构建
 
-Open Nilore 支持两种交付形式：**Java Agent jar**（挂到 Minecraft JVM 启动参数里）和 **热注入器 (单文件 EXE，内嵌 DLL)**。Agent 路径只要 JDK，注入器路径还需要 MSVC 工具链。
+OpenNIGHT 支持两种交付形式：**Java Agent jar**（挂到 Minecraft JVM 启动参数里）和 **热注入器 (单文件 EXE，内嵌 DLL)**。Agent 路径只要 JDK，注入器路径还需要 MSVC 工具链。
 
 > **本项目不能作为 Forge mod 启动。** `mods/` 加载路径不被支持，不要把 jar 丢进 `.minecraft/mods/`。
 
 ### 编译时类名混淆（重要）
 
-每次构建，Open Nilore 会**自动把所有自有类(`client.nilore.*` / `asm.patchify.*`)重命名为随机的 16 位名字**——包名和类名都随机，**每次构建都不一样**、互不重复，原始类名/包名一律不保留（连日志里残留的类名字符串也清理掉了）。引导链（Agent 入口、DLL 加载、`Class.forName`）会在构建时自动联动到新名字，无需手工处理。两种交付形式（jar / 注入器）都已混淆。
+每次构建，OpenNIGHT 会**自动把所有自有类(`client.opennight.*` / `asm.patchify.*`)重命名为随机的 16 位名字**——包名和类名都随机，**每次构建都不一样**、互不重复，原始类名/包名一律不保留（连日志里残留的类名字符串也清理掉了）。引导链（Agent 入口、DLL 加载、`Class.forName`）会在构建时自动联动到新名字，无需手工处理。两种交付形式（jar / 注入器）都已混淆。
 
 这是为了对抗按**类名黑名单**工作的反作弊（见下方[常见问题](#布吉岛反作弊绕过)）。正因为名字每次构建随机：
 
@@ -102,7 +102,7 @@ Open Nilore 支持两种交付形式：**Java Agent jar**（挂到 Minecraft JVM
 - **JDK 17**（推荐 Microsoft Build of OpenJDK / Temurin / Azul Zulu 任一）。
 - 必须设置 `JAVA_HOME` 环境变量指向该 JDK 安装目录（PowerShell 验证：`echo $env:JAVA_HOME`）。
 - 仓库根目录用 `gradlew.bat` 即可，**不需要**单独安装 Gradle。
-- **可选：UPX** —— 仅热注入器路径会用到，作用是把最终的 `OpenNiloreLoader.exe` 从 ~32 MB 压到 ~10 MB。在 `PATH` 上检测到 `upx` 时 `./gradlew upxCompress` 会自动跑 `--best --lzma`；找不到就只打一条 warning 直接跳过，不影响功能。安装方式：
+- **可选：UPX** —— 仅热注入器路径会用到，作用是把最终的 `OpenNIGHTLoader.exe` 从 ~32 MB 压到 ~10 MB。在 `PATH` 上检测到 `upx` 时 `./gradlew upxCompress` 会自动跑 `--best --lzma`；找不到就只打一条 warning 直接跳过，不影响功能。安装方式：
 
     ```powershell
     choco install upx -y
@@ -130,7 +130,7 @@ Open Nilore 支持两种交付形式：**Java Agent jar**（挂到 Minecraft JVM
 
 ### 2. 构建为热注入器 (单文件 EXE)
 
-产出一个独立的 `OpenNiloreLoader.exe`，DLL 已经作为资源段嵌入 EXE 内部。用户分发只需要这一个文件，运行后 GUI 列出当前所有 `javaw.exe` 进程（含 Minecraft 窗口标题），选中后点 Inject 即可。
+产出一个独立的 `OpenNIGHTLoader.exe`，DLL 已经作为资源段嵌入 EXE 内部。用户分发只需要这一个文件，运行后 GUI 列出当前所有 `javaw.exe` 进程（含 Minecraft 窗口标题），选中后点 Inject 即可。
 
 #### 额外前置 — 必须项
 
@@ -150,7 +150,7 @@ Open Nilore 支持两种交付形式：**Java Agent jar**（挂到 Minecraft JVM
     ```
 
     Gradle 检测顺序：环境变量 `VCPKG_ROOT` → `C:\vcpkg` → `D:\vcpkg` → `%USERPROFILE%\vcpkg`。
-    **首次** `./gradlew dll` 时 vcpkg 会按 `native/vcpkg.json` 编译静态 Qt6（30 分钟到 2 小时，看 CPU），之后增量 build 几分钟。Qt 完全静态链接进 EXE，所以分发依然单文件——`OpenNiloreLoader.exe` 自带 Qt6 + OpenZen.dll，零运行时依赖。
+    **首次** `./gradlew dll` 时 vcpkg 会按 `native/vcpkg.json` 编译静态 Qt6（30 分钟到 2 小时，看 CPU），之后增量 build 几分钟。Qt 完全静态链接进 EXE，所以分发依然单文件——`OpenNIGHTLoader.exe` 自带 Qt6 + OpenNIGHT.dll，零运行时依赖。
 
 #### 构建命令
 
@@ -158,17 +158,17 @@ Open Nilore 支持两种交付形式：**Java Agent jar**（挂到 Minecraft JVM
 .\gradlew.bat dll
 ```
 
-产物：`build/dist/OpenNiloreLoader.exe`。如果已装 UPX 想顺便压缩，跑 `.\gradlew.bat upxCompress`。
+产物：`build/dist/OpenNIGHTLoader.exe`。如果已装 UPX 想顺便压缩，跑 `.\gradlew.bat upxCompress`。
 
 #### 使用注入器
 
 1. 用 HMCL / Forge 启动器正常启动 Minecraft 1.20.1 Forge（**不需要**任何特殊 JVM 参数）。
-2. 双击 `OpenNiloreLoader.exe`。
+2. 双击 `OpenNIGHTLoader.exe`。
 3. GUI 自动列出系统里**所有 Minecraft 实例**，每秒自动刷新一次。
 4. 点击行最后的 Inject 按钮。
 
 诊断日志：
-- Native 端：`%TEMP%\openzen.log`
+- Native 端：`%TEMP%\opennight.log`
 - Java 端：Minecraft 自己的 `logs/latest.log`（类名已被构建时混淆、logger 名是随机的，改用固定日志文案定位，如 `bootstrap.start`、`bridge.load`、`agent attached`、`Runtime mapping`）
 
 ## 常见问题

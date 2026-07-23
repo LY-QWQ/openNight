@@ -1,10 +1,10 @@
-#include "openzen.h"
+#include "opennight.h"
 
 #include <cstdarg>
 #include <cstdio>
 #include <mutex>
 
-namespace openzen::log {
+namespace opennight::log {
 
 namespace {
     std::mutex g_mutex;
@@ -48,7 +48,7 @@ void init() {
     if (n == 0 || n > MAX_PATH) return;
 
     wchar_t path[MAX_PATH];
-    std::swprintf(path, MAX_PATH, L"%sopenzen.log", tmp);
+    std::swprintf(path, MAX_PATH, L"%sopennight.log", tmp);
 
     g_file = CreateFileW(path, GENERIC_WRITE, FILE_SHARE_READ, nullptr,
                           CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
@@ -66,4 +66,4 @@ void error(const char* fmt, ...) {
     va_end(ap);
 }
 
-} // namespace openzen::log
+} // namespace opennight::log

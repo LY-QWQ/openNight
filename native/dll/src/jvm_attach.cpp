@@ -1,8 +1,8 @@
-#include "openzen.h"
+#include "opennight.h"
 
 #include <vector>
 
-namespace openzen::jvm {
+namespace opennight::jvm {
 
 namespace {
     // Signature of Agent_OnAttach exported by the JDK's instrument.dll.
@@ -99,4 +99,4 @@ jint attach_instrument(JavaVM* vm, const std::wstring& jar_path) {
     return rc;
 }
 
-} // namespace openzen::jvm
+} // namespace opennight::jvm

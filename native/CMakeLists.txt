@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.20)
 # instead of patching CMAKE_CXX_FLAGS_*. CMake 3.15+ default, set
 # explicitly so the build stays predictable across CMake versions.
 cmake_policy(SET CMP0091 NEW)
-project(OpenZenNative LANGUAGES CXX)
+project(OpenNIGHTNative LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -26,7 +26,7 @@ set(JDK_INCLUDE "$ENV{JAVA_HOME}/include")
 include_directories(${JDK_INCLUDE} ${JDK_INCLUDE}/win32)
 
 if(NOT WIN32)
-    message(FATAL_ERROR "OpenZen native build only supports Windows")
+    message(FATAL_ERROR "OpenNIGHT native build only supports Windows")
 endif()
 
 add_compile_definitions(

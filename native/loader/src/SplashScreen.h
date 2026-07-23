@@ -4,7 +4,7 @@
 
 namespace loader {
 
-// Frameless, translucent, top-most splash that animates the OpenZen
+// Frameless, translucent, top-most splash that animates the OpenNIGHT
 // wordmark and a scanning line, then fades itself out and emits
 // finished(). Used as the cold-start window before MainWindow appears.
 class SplashScreen : public QWidget {

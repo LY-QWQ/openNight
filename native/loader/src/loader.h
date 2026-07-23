@@ -22,13 +22,13 @@ struct WindowInfo {
 // Enumerate processes whose image is javaw.exe / java.exe.
 std::vector<JavaProcess> list_java_processes();
 
-// Map the embedded OpenZen.dll directly into the target process and run its
+// Map the embedded OpenNIGHT.dll directly into the target process and run its
 // DllMain via shellcode. The DLL bytes never touch disk. Returns an empty
 // string on success or a human-readable error message.
 std::wstring inject(DWORD pid);
 
 // Return a pointer into the loader EXE's resource section that holds the
-// embedded OpenZen.dll along with its byte size. The pointer remains valid
+// embedded OpenNIGHT.dll along with its byte size. The pointer remains valid
 // for the lifetime of the loader process.
 bool get_embedded_dll(const void*& out_data, size_t& out_size);
 

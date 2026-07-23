@@ -1,7 +1,7 @@
-#include "openzen.h"
+#include "opennight.h"
 #include "resource.h"
 
-namespace openzen::jar {
+namespace opennight::jar {
 
 namespace {
 
@@ -63,9 +63,9 @@ const void* find_rcdata(HMODULE module_base, WORD id, DWORD& out_size) {
 
 bool extract_embedded(std::wstring& out_path) {
     DWORD size = 0;
-    const void* data = find_rcdata(g_self_module, IDR_NILORE_JAR, size);
+    const void* data = find_rcdata(g_self_module, IDR_OPENNIGHT_JAR, size);
     if (!data || size == 0) {
-        log::error("PE resource lookup for IDR_NILORE_JAR (RT_RCDATA) failed");
+        log::error("PE resource lookup for IDR_OPENNIGHT_JAR (RT_RCDATA) failed");
         return false;
     }
 
@@ -76,7 +76,7 @@ bool extract_embedded(std::wstring& out_path) {
     }
 
     wchar_t path[MAX_PATH];
-    std::swprintf(path, MAX_PATH, L"%sopenzen-%lu.jar", tmp, GetCurrentProcessId());
+    std::swprintf(path, MAX_PATH, L"%sopennight-%lu.jar", tmp, GetCurrentProcessId());
 
     HANDLE file = CreateFileW(path, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS,
                                FILE_ATTRIBUTE_NORMAL, nullptr);
@@ -94,8 +94,8 @@ bool extract_embedded(std::wstring& out_path) {
     }
 
     out_path.assign(path);
-    log::info("Extracted nilore.jar (%lu bytes) to %ls", (unsigned long)size, path);
+    log::info("Extracted opennight.jar (%lu bytes) to %ls", (unsigned long)size, path);
     return true;
 }
 
-} // namespace openzen::jar
+} // namespace opennight::jar

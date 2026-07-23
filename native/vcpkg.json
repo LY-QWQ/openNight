@@ -1,8 +1,8 @@
 {
   "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
-  "name": "openzen-loader",
+  "name": "opennight-loader",
   "version-string": "1.0.0",
-  "description": "Native loader + DLL for the OpenZen Minecraft client",
+  "description": "Native loader + DLL for the OpenNIGHT Minecraft client",
   "dependencies": [
     {
       "name": "qtbase",

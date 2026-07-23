@@ -103,7 +103,7 @@ jobs:
           if (Test-Path $vcpkg) {
               Write-Host "Reusing existing $vcpkg"
           } else {
-              git clone --depth=1 --branch $vcpkgTag https://github.com/microsoft/vcpkg.git $vcpkg
+              git clone --branch $vcpkgTag https://github.com/microsoft/vcpkg.git $vcpkg
           }
           & "$vcpkg\bootstrap-vcpkg.bat" -disableMetrics
           & "$vcpkg\vcpkg.exe" version
@@ -143,12 +143,12 @@ jobs:
       - name: Build (clean dll upxCompress)
         shell: pwsh
         env:
-          OPENZEN_BUILD_REVISION: ${{ steps.rev.outputs.sha }}
+          ENGINE_BUILD_REVISION: ${{ steps.rev.outputs.sha }}
         run: |
           Write-Host "VCPKG_ROOT       = $env:VCPKG_ROOT"
           Write-Host "JAVA_HOME        = $env:JAVA_HOME"
-          Write-Host "OPENZEN_BUILD_REV = $env:OPENZEN_BUILD_REVISION"
-          .\gradlew.bat --no-daemon clean dll upxCompress
+          Write-Host "ENGINE_BUILD_REV  = $env:ENGINE_BUILD_REVISION"
+          .\gradlew.bat --no-daemon --stacktrace clean dll upxCompress
 
       # Rename the two distributable artifacts so their final filenames carry
       # the build sha. We rename rather than re-publish at build time so the
@@ -157,8 +157,8 @@ jobs:
         shell: pwsh
         run: |
           $sha = "${{ steps.rev.outputs.sha }}"
-          $exeSrc = "build\dist\OpenNiloreLoader.exe"
-          $jarSrc = "build\libs\hey-1.0.jar"
+          $exeSrc = "build\dist\OpenNIGHTLoader.exe"
+          $jarSrc = "build\libs\night-1.0.jar"
           # The class-name obfuscator emits a fresh, random old->new mapping on every
           # build; rename-mapping.txt is the ONLY way to de-obfuscate a stack trace, so
           # ship it with the artifacts/release.
@@ -169,46 +169,46 @@ jobs:
 
           $release = "build\release"
           New-Item -ItemType Directory -Force -Path $release | Out-Null
-          $exeDst = Join-Path $release "OpenNiloreLoader-$sha.exe"
-          $jarDst = Join-Path $release "OpenZen-$sha.jar"
-          $mapDst = Join-Path $release "OpenZen-$sha-mapping.txt"
+          $exeDst = Join-Path $release "OpenNIGHT-$sha.exe"
+          $jarDst = Join-Path $release "OpenNIGHT-$sha.jar"
+          $mapDst = Join-Path $release "OpenNIGHT-$sha-mapping.txt"
           Copy-Item -Force $exeSrc $exeDst
           Copy-Item -Force $jarSrc $jarDst
           Copy-Item -Force $mapSrc $mapDst
 
           $exeSz = (Get-Item $exeDst).Length
           $jarSz = (Get-Item $jarDst).Length
-          Write-Host ("OpenNiloreLoader-{0}.exe : {1:N0} bytes ({2:N2} MB)" -f $sha, $exeSz, ($exeSz/1MB))
-          Write-Host ("OpenZen-{0}.jar       : {1:N0} bytes ({2:N2} MB)" -f $sha, $jarSz, ($jarSz/1MB))
-          Write-Host ("OpenZen-{0}-mapping.txt : {1:N0} bytes" -f $sha, (Get-Item $mapDst).Length)
+          Write-Host ("OpenNIGHT-{0}.exe : {1:N0} bytes ({2:N2} MB)" -f $sha, $exeSz, ($exeSz/1MB))
+          Write-Host ("OpenNIGHT-{0}.jar       : {1:N0} bytes ({2:N2} MB)" -f $sha, $jarSz, ($jarSz/1MB))
+          Write-Host ("OpenNIGHT-{0}-mapping.txt : {1:N0} bytes" -f $sha, (Get-Item $mapDst).Length)
 
       # NOTE: actions/upload-artifact always wraps its content in a zip; that
       # is a platform limitation we cannot disable. By giving each artifact a
       # single file whose name already encodes the sha, the download is
-      # OpenNiloreLoader-<sha>.exe.zip / OpenZen-<sha>.jar.zip, each containing
+      # OpenNIGHT-<sha>.exe.zip / OpenNIGHT-<sha>.jar.zip, each containing
       # just the named file (no nested directory). For raw exe/jar downloads
       # without the zip wrapper, attach to a GitHub Release instead.
-      - name: Upload OpenNiloreLoader exe
+      - name: Upload OpenNIGHT exe
         uses: actions/upload-artifact@v4
         with:
-          name: OpenNiloreLoader-${{ steps.rev.outputs.sha }}.exe
-          path: build/release/OpenNiloreLoader-${{ steps.rev.outputs.sha }}.exe
+          name: OpenNIGHT-${{ steps.rev.outputs.sha }}.exe
+          path: build/release/OpenNIGHT-${{ steps.rev.outputs.sha }}.exe
           if-no-files-found: error
           retention-days: 30
 
-      - name: Upload OpenZen jar
+      - name: Upload OpenNIGHT jar
         uses: actions/upload-artifact@v4
         with:
-          name: OpenZen-${{ steps.rev.outputs.sha }}.jar
-          path: build/release/OpenZen-${{ steps.rev.outputs.sha }}.jar
+          name: OpenNIGHT-${{ steps.rev.outputs.sha }}.jar
+          path: build/release/OpenNIGHT-${{ steps.rev.outputs.sha }}.jar
           if-no-files-found: error
           retention-days: 30
 
       - name: Upload de-obfuscation mapping
         uses: actions/upload-artifact@v4
         with:
-          name: OpenZen-${{ steps.rev.outputs.sha }}-mapping.txt
-          path: build/release/OpenZen-${{ steps.rev.outputs.sha }}-mapping.txt
+          name: OpenNIGHT-${{ steps.rev.outputs.sha }}-mapping.txt
+          path: build/release/OpenNIGHT-${{ steps.rev.outputs.sha }}-mapping.txt
           if-no-files-found: error
           retention-days: 30
 
@@ -251,13 +251,13 @@ jobs:
           $warn = @(
             '> ⚠️ **这是预构建版本（PRE-BUILT）**'
             '>'
-            '> 本 Release 里的 `OpenNiloreLoader.exe` / `OpenZen-*.jar` 是 GitHub Actions 编译的成品，**所有人下载到的是同一套混淆类名**。这套固定的名字随时可能被反作弊（如布吉岛）收录进**类名黑名单**而失效。'
+            '> 本 Release 里的 `OpenNIGHTLoader.exe` / `OpenNIGHT-*.jar` 是 GitHub Actions 编译的成品，**所有人下载到的是同一套混淆类名**。这套固定的名字随时可能被反作弊（如布吉岛）收录进**类名黑名单**而失效。'
             '>'
             '> 想要一套**独一无二、别人都不知道**的类名，请**自己编译**（每次构建都会生成全新随机类名）：'
             '> - **Fork 本仓库**，在你自己的 GitHub Actions 里跑 `Build Loader` 工作流，下载你自己的 artifact；**或**'
             '> - **clone 到本地**自己 `gradlew jar` / `gradlew dll`。'
             '>'
-            '> 详见仓库 README 的「编译时类名混淆」。`OpenZen-*-mapping.txt` 是本次构建的反混淆映射（每次构建都不同）。'
+            '> 详见仓库 README 的「编译时类名混淆」。`OpenNIGHT-*-mapping.txt` 是本次构建的反混淆映射（每次构建都不同）。'
             ''
             '---'
             ''
@@ -267,6 +267,6 @@ jobs:
           gh release create $tag `
               --title $title `
               --notes-file $notes `
-              "build/release/OpenNiloreLoader-$env:SHA.exe" `
-              "build/release/OpenZen-$env:SHA.jar" `
-              "build/release/OpenZen-$env:SHA-mapping.txt"
+              "build/release/OpenNIGHT-$env:SHA.exe" `
+              "build/release/OpenNIGHT-$env:SHA.jar" `
+              "build/release/OpenNIGHT-$env:SHA-mapping.txt"

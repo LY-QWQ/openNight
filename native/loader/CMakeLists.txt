@@ -5,19 +5,19 @@ set(CMAKE_AUTOUIC ON)
 
 find_package(Qt6 6.4 COMPONENTS Widgets REQUIRED)
 
-# Stage the freshly-built OpenZen.dll into the loader's binary dir so rc.exe
+# Stage the freshly-built OpenNIGHT.dll into the loader's binary dir so rc.exe
 # can pick it up as an RCDATA resource (embedded in the .exe).
 set(EMBED_DIR "${CMAKE_CURRENT_BINARY_DIR}/embedded_dll")
 add_custom_command(
-    OUTPUT  "${EMBED_DIR}/OpenZen.dll"
+    OUTPUT  "${EMBED_DIR}/OpenNIGHT.dll"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${EMBED_DIR}"
-    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:OpenZen> "${EMBED_DIR}/OpenZen.dll"
-    DEPENDS OpenZen
-    COMMENT "Staging OpenZen.dll into loader resources"
+    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:OpenNIGHT> "${EMBED_DIR}/OpenNIGHT.dll"
+    DEPENDS OpenNIGHT
+    COMMENT "Staging OpenNIGHT.dll into loader resources"
 )
-add_custom_target(stage_dll_for_loader DEPENDS "${EMBED_DIR}/OpenZen.dll")
+add_custom_target(stage_dll_for_loader DEPENDS "${EMBED_DIR}/OpenNIGHT.dll")
 
-qt_add_executable(OpenNiloreLoader WIN32
+qt_add_executable(OpenNIGHTLoader WIN32
     src/main.cpp
     src/MainWindow.cpp
     src/MainWindow.h
@@ -39,20 +39,20 @@ qt_add_executable(OpenNiloreLoader WIN32
     res/loader.rc
 )
 
-add_dependencies(OpenNiloreLoader stage_dll_for_loader)
+add_dependencies(OpenNIGHTLoader stage_dll_for_loader)
 
-target_include_directories(OpenNiloreLoader PRIVATE
+target_include_directories(OpenNIGHTLoader PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/res
 )
 
-# Tell rc.exe to look in EMBED_DIR (where OpenZen.dll was staged) when
-# resolving the RCDATA "OpenZen.dll" reference in loader.rc.
+# Tell rc.exe to look in EMBED_DIR (where OpenNIGHT.dll was staged) when
+# resolving the RCDATA "OpenNIGHT.dll" reference in loader.rc.
 set_source_files_properties(res/loader.rc PROPERTIES
     COMPILE_FLAGS "/I\"${EMBED_DIR}\""
 )
 
-target_link_libraries(OpenNiloreLoader PRIVATE
+target_link_libraries(OpenNIGHTLoader PRIVATE
     Qt6::Widgets
     psapi
     shlwapi
@@ -64,19 +64,19 @@ target_link_libraries(OpenNiloreLoader PRIVATE
 # CI). Stamped into the window title so a built loader can be
 # traced back to its source commit.
 if(DEFINED OPENZEN_BUILD_REVISION AND NOT OPENZEN_BUILD_REVISION STREQUAL "")
-    target_compile_definitions(OpenNiloreLoader PRIVATE
+    target_compile_definitions(OpenNIGHTLoader PRIVATE
         OPENZEN_BUILD_REVISION="${OPENZEN_BUILD_REVISION}")
 endif()
 
-set_target_properties(OpenNiloreLoader PROPERTIES
-    OUTPUT_NAME "OpenNiloreLoader"
+set_target_properties(OpenNIGHTLoader PROPERTIES
+    OUTPUT_NAME "OpenNIGHTLoader"
 )
 
 if(MSVC)
     # requireAdministrator: lets the loader OpenProcess / VirtualAllocEx /
     # CreateRemoteThread against javaw.exe even when the launcher was
     # itself started elevated. UAC consent prompts once on launch.
-    set_target_properties(OpenNiloreLoader PROPERTIES
+    set_target_properties(OpenNIGHTLoader PROPERTIES
         LINK_FLAGS "/SUBSYSTEM:WINDOWS /MANIFESTUAC:\"level='requireAdministrator' uiAccess='false'\""
     )
 endif()

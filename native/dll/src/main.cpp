@@ -1,8 +1,8 @@
-#include "openzen.h"
+#include "opennight.h"
 
 #include <atomic>
 
-namespace openzen {
+namespace opennight {
     HMODULE g_self_module = nullptr;
 }
 
@@ -11,10 +11,10 @@ namespace {
 std::atomic<bool> g_already_attached{false};
 
 DWORD WINAPI inject_thread(LPVOID) {
-    using namespace openzen;
+    using namespace opennight;
 
     log::init();
-    log::info("OpenZen.dll bootstrap thread started, pid=%lu", GetCurrentProcessId());
+    log::info("OpenNIGHT.dll bootstrap thread started, pid=%lu", GetCurrentProcessId());
 
     JavaVM* vm = jvm::find_vm();
     if (!vm) return 1;
@@ -22,7 +22,7 @@ DWORD WINAPI inject_thread(LPVOID) {
     JNIEnv* env = nullptr;
     JavaVMAttachArgs args{};
     args.version = JNI_VERSION_1_8;
-    args.name = const_cast<char*>("OpenZen-Bootstrap");
+    args.name = const_cast<char*>("OpenNIGHT-Bootstrap");
     args.group = nullptr;
     if (vm->AttachCurrentThreadAsDaemon((void**)&env, &args) != JNI_OK || !env) {
         log::error("AttachCurrentThreadAsDaemon failed");
@@ -96,7 +96,7 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID) {
         if (!g_already_attached.compare_exchange_strong(expected, true)) {
             return TRUE;
         }
-        openzen::g_self_module = module;
+        opennight::g_self_module = module;
         DisableThreadLibraryCalls(module);
         // Never call JNI from inside DllMain - the loader lock is held. Kick
         // a separate worker thread that will do all the heavy lifting.
