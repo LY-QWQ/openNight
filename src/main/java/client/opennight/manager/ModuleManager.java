@@ -41,6 +41,7 @@ import client.opennight.modules.impl.movement.NoPush;
 import client.opennight.modules.impl.movement.Scaffold;
 import client.opennight.modules.impl.movement.Sprint;
 import client.opennight.modules.impl.movement.TargetStrafe;
+import client.opennight.modules.impl.movement.GameTimer;
 import client.opennight.modules.impl.player.AntiTNT;
 import client.opennight.modules.impl.player.AntiVoid;
 import client.opennight.modules.impl.player.AntiWeb;
@@ -105,6 +106,7 @@ public class ModuleManager extends ClientBase {
         this.register(new Scaffold());
         this.register(new Sprint());
         this.register(new TargetStrafe());
+        this.register(new GameTimer());
 
         this.register(new AntiTNT());
         this.register(new AntiVoid());

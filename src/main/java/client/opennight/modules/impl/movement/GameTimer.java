@@ -10,7 +10,7 @@ import client.opennight.settings.impl.NumberSetting;
 import client.opennight.utils.animation.Timer;
 import client.opennight.event.EventTarget;
 
-public class Timer extends Module {
+public class GameTimer extends Module {
     private final ModeSetting timerMode = new ModeSetting("Mode", "Constant", "MicroPulse").withDefault("MicroPulse");
     private final NumberSetting timerSpeed = new NumberSetting("Timer Speed", 1.05, 1.0, 2.0, 0.01);
 
@@ -22,7 +22,7 @@ public class Timer extends Module {
     private static final float[] MICRO_PULSE_SPEEDS = {1.0f, 1.05f, 1.0f, 1.03f};
 
     public Timer() {
-        super("Timer", Category.MOVEMENT);
+        super("GameTimer", Category.MOVEMENT);
     }
 
     @Override
